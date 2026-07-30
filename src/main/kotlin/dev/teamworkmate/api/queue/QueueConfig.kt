@@ -33,16 +33,17 @@ class QueueConfig {
         if (mode == "sqs") SqsClient.create() else null
 
     /**
-     * Consumer side. Disabled by default so the api task only produces;
-     * the worker task runs with queue.worker.enabled=true.
+     * Consumer side, `poll` variant: a long-polling loop for long-lived processes
+     * (ECS task, local run). On Lambda the platform delivers instead — see
+     * LambdaEventController, selected by queue.consumer=lambda.
      */
     @Bean(initMethod = "start")
     fun sqsWorker(
         @Value("\${queue.mode:memory}") mode: String,
-        @Value("\${queue.worker.enabled:false}") enabled: Boolean,
+        @Value("\${queue.consumer:none}") consumer: String,
         @Value("\${queue.sqs.url:}") queueUrl: String,
         sqs: ObjectProvider<SqsClient>,
         jobs: ObjectProvider<AnalysisJobService>,
     ): SqsWorker? =
-        if (mode == "sqs" && enabled) SqsWorker(sqs.getObject(), queueUrl, jobs) else null
+        if (mode == "sqs" && consumer == "poll") SqsWorker(sqs.getObject(), queueUrl, jobs) else null
 }

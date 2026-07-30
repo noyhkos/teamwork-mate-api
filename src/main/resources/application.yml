@@ -31,9 +31,9 @@ queue:
   mode: ${QUEUE_MODE:memory}
   sqs:
     url: ${ANALYSIS_QUEUE_URL:}
-  worker:
-    # The api task only produces; the worker task flips this on and consumes.
-    enabled: ${QUEUE_WORKER_ENABLED:false}
+  # none = produce only (the public api), poll = long-polling loop (ECS/local),
+  # lambda = the platform delivers the batch to /events (Lambda Web Adapter).
+  consumer: ${QUEUE_CONSUMER:none}
 
 llm:
   # Blank key disables the phrase layer entirely — reports fall back to templates.
