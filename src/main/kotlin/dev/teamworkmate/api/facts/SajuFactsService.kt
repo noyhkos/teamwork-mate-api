@@ -10,15 +10,20 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 
+/** Port so tests (and future transports) can swap the calc backend. */
+interface CalcPort {
+    fun fetchFacts(member: Member, now: Instant): JsonNode
+}
+
 /** Thin HTTP client for the Node calc microservice (ssaju is TS-only, hence the language boundary). */
 @Component
 class SajuCalcClient(
     @Value("\${calc.base-url}") baseUrl: String,
     private val objectMapper: ObjectMapper,
-) {
+) : CalcPort {
     private val client = RestClient.builder().baseUrl(baseUrl).build()
 
-    fun fetchFacts(member: Member, now: Instant): JsonNode {
+    override fun fetchFacts(member: Member, now: Instant): JsonNode {
         val body = buildMap<String, Any> {
             put("birthDate", member.birthDate.toString())
             member.birthTime?.let { put("birthTime", "%02d:%02d".format(it.hour, it.minute)) }
@@ -35,7 +40,7 @@ class SajuCalcClient(
 
 @Service
 class SajuFactsService(
-    private val calcClient: SajuCalcClient,
+    private val calcClient: CalcPort,
     private val repository: SajuFactsRepository,
 ) {
 

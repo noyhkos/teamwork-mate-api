@@ -11,6 +11,7 @@ import java.util.UUID
 interface TeamRepository : JpaRepository<Team, UUID> {
     fun findByInviteToken(token: String): Team?
     fun findByAdminToken(token: String): Team?
+    fun findByShareSlug(slug: String): Team?
 }
 
 /** URL-safe capability tokens — possession of the URL is the permission. */
