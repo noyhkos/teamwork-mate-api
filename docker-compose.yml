@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: teamworkmate-db
+    ports:
+      - "5433:5432" # 5433 on host to avoid clashing with other local postgres
+    environment:
+      POSTGRES_DB: teamworkmate
+      POSTGRES_USER: twm
+      POSTGRES_PASSWORD: twm-local
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twm -d teamworkmate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:
