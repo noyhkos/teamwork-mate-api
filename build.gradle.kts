@@ -51,3 +51,18 @@ allOpen {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
+
+// Local secrets live in ./.env (gitignored); bootRun exports them as env vars.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	val envFile = project.file(".env")
+	if (envFile.exists()) {
+		envFile.readLines()
+			.map { it.trim() }
+			.filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+			.forEach { line ->
+				val (rawKey, rawValue) = line.removePrefix("export ").split("=", limit = 2)
+				val value = rawValue.trim().removeSurrounding("\"").removeSurrounding("'")
+				environment(rawKey.trim(), value)
+			}
+	}
+}

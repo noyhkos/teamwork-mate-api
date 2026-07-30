@@ -25,3 +25,13 @@ server:
 
 calc:
   base-url: http://localhost:3001
+
+llm:
+  # Blank key disables the phrase layer entirely — reports fall back to templates.
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+  generation-model: ${LLM_GENERATION_MODEL:gemini-3.6-flash}
+  # Distinct judge model to reduce self-preference bias. Gemini 3 series only
+  # (response_format JSON schema), and a -lite tier so the free-tier request
+  # quota is not exhausted by the second call of every phrase.
+  judge-model: ${LLM_JUDGE_MODEL:gemini-3.5-flash-lite}

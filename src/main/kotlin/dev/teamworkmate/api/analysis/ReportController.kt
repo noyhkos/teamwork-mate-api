@@ -3,6 +3,8 @@ package dev.teamworkmate.api.analysis
 import dev.teamworkmate.api.domain.pairs.PairFactor
 import dev.teamworkmate.api.domain.roles.Role
 import dev.teamworkmate.api.facts.SajuFactsRepository
+import dev.teamworkmate.api.llm.PhrasePrompts
+import dev.teamworkmate.api.llm.PhraseService
 import dev.teamworkmate.api.team.MemberService
 import dev.teamworkmate.api.team.Team
 import dev.teamworkmate.api.team.TeamRepository
@@ -19,12 +21,16 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 
-data class RoleView(val nickname: String, val role: String, val roleKo: String, val score: Double, val unique: Boolean?)
-data class PairView(val a: String, val b: String, val total: Int, val factors: List<String>)
+data class RoleView(
+    val nickname: String, val role: String, val roleKo: String, val score: Double, val unique: Boolean?,
+    val reason: String, // LLM phrase when accepted, deterministic template otherwise
+)
+data class PairView(val a: String, val b: String, val total: Int, val factors: List<String>, val reason: String?)
 data class ReportView(
     val teamName: String?,
     val archetype: String,
     val archetypeDesc: String?,
+    val intro: String?, // LLM team intro; null falls back to archetypeDesc in the UI
     val harmonyScore: Int,
     val roles: List<RoleView>,
     val bestPair: PairView?,
@@ -34,6 +40,12 @@ data class ReportView(
     val riskNote: String?,
     val samjaeMembers: List<String>,
     val shareSlug: String?,
+    val llmPhrases: Boolean,
+)
+
+data class AnalyzeResponse(
+    val members: Int, val pairs: Int, val archetype: String, val harmony: Int, val shareSlug: String,
+    val phrases: String, // llm | partial | failed | skipped
 )
 
 @RestController
@@ -48,12 +60,19 @@ class ReportController(
     private val teamAnalysis: TeamAnalysisRepository,
     private val sajuFacts: SajuFactsRepository,
     private val cardClient: CardClient,
+    private val phraseService: PhraseService,
     private val om: ObjectMapper,
 ) {
 
     @PostMapping("/teams/admin/{token}/analyze")
-    fun analyze(@PathVariable token: String): AnalysisService.Summary =
-        analysisService.analyze(teamService.byAdminToken(token), Instant.now())
+    fun analyze(@PathVariable token: String): AnalyzeResponse {
+        val team = teamService.byAdminToken(token)
+        val now = Instant.now()
+        val summary = analysisService.analyze(team, now)
+        // Best-effort phrase layer — never fails the analysis, never serves unjudged text.
+        val phrases = phraseService.enrich(team, now)
+        return AnalyzeResponse(summary.members, summary.pairs, summary.archetype, summary.harmony, summary.shareSlug, phrases)
+    }
 
     @GetMapping("/teams/invite/{token}/report")
     fun reportByInvite(@PathVariable token: String): ReportView = buildReport(teamService.byInviteToken(token))
@@ -87,16 +106,22 @@ class ReportController(
         val members = memberService.listFor(team.id)
         val nickname: Map<UUID, String> = members.associate { it.id to it.nickname }
 
-        val roles = roleScores.findByTeamIdAndAssignedTrue(team.id)
+        val assignedRoles = roleScores.findByTeamIdAndAssignedTrue(team.id)
+        val roles = assignedRoles
             .sortedBy { rs -> Role.entries.first { it.key == rs.role }.ordinal }
             .map { rs ->
                 val role = Role.entries.first { it.key == rs.role }
-                RoleView(nickname.getValue(rs.memberId), role.key, role.ko, rs.score, rs.assignedUnique)
+                RoleView(
+                    nickname.getValue(rs.memberId), role.key, role.ko, rs.score, rs.assignedUnique,
+                    reason = rs.reason ?: PhrasePrompts.templateRoleReason(role, rs.score),
+                )
             }
 
-        val pairs = pairScores.findByTeamIdOrderByTotalDesc(team.id)
+        val pairs = pairScores.findByTeamIdOrderByTotalDescIdAsc(team.id)
         val best = pairs.firstOrNull()?.toView(nickname)
         val worst = pairs.lastOrNull()?.takeIf { pairs.size > 1 }?.toView(nickname)
+        val llmPhrases = assignedRoles.any { it.reason != null } ||
+            pairs.any { it.reason != null } || analysis.intro != null
 
         val samjaeMembers = members.filter { m ->
             sajuFacts.findById(m.id).map { f ->
@@ -109,6 +134,7 @@ class ReportController(
             teamName = team.name,
             archetype = analysis.archetypeName,
             archetypeDesc = analysis.archetypeDesc,
+            intro = analysis.intro,
             harmonyScore = analysis.harmonyScore,
             roles = roles,
             bestPair = best,
@@ -118,11 +144,12 @@ class ReportController(
             riskNote = analysis.riskNote,
             samjaeMembers = samjaeMembers,
             shareSlug = team.shareSlug,
+            llmPhrases = llmPhrases,
         )
     }
 
     private fun PairScoreEntity.toView(nickname: Map<UUID, String>): PairView {
         val labels = om.readValue(factors, Array<PairFactor>::class.java).map { it.label }
-        return PairView(nickname.getValue(memberAId), nickname.getValue(memberBId), total, labels)
+        return PairView(nickname.getValue(memberAId), nickname.getValue(memberBId), total, labels, reason)
     }
 }

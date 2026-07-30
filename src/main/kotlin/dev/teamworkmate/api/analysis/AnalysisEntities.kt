@@ -7,6 +7,10 @@ import jakarta.persistence.Table
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -20,17 +24,24 @@ class RoleScoreEntity(
     @Column(nullable = false) val score: Double,
     @Column(nullable = false) val assigned: Boolean = false,
     @Column(name = "assigned_unique") val assignedUnique: Boolean? = null,
-    val reason: String? = null,
+    var reason: String? = null, // judge-accepted LLM phrase; NULL serves the template
 )
 
 interface RoleScoreRepository : JpaRepository<RoleScoreEntity, UUID> {
     // Bulk JPQL delete executes immediately — derived deletes are queued after inserts
     // in Hibernate's action order and would break rerun idempotency.
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query("delete from RoleScoreEntity r where r.teamId = :teamId")
+    @Modifying
+    @Query("delete from RoleScoreEntity r where r.teamId = :teamId")
     fun deleteByTeamId(teamId: UUID): Int
 
     fun findByTeamIdAndAssignedTrue(teamId: UUID): List<RoleScoreEntity>
+
+    // Targeted update: a detached entity merge would resurrect rows a concurrent
+    // rerun already deleted. 0 rows affected simply means "superseded".
+    @Transactional
+    @Modifying
+    @Query("update RoleScoreEntity r set r.reason = :reason where r.id = :id")
+    fun updateReason(@Param("id") id: UUID, @Param("reason") reason: String): Int
 }
 
 @Entity
@@ -44,15 +55,21 @@ class PairScoreEntity(
     @Column(name = "saju_score", nullable = false) val sajuScore: Int,
     @Column(name = "mbti_score", nullable = false) val mbtiScore: Int,
     @JdbcTypeCode(SqlTypes.JSON) @Column(nullable = false) val factors: String,
-    val reason: String? = null,
+    var reason: String? = null, // judge-accepted LLM phrase; NULL serves the template
 )
 
 interface PairScoreRepository : JpaRepository<PairScoreEntity, UUID> {
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query("delete from PairScoreEntity p where p.teamId = :teamId")
+    @Modifying
+    @Query("delete from PairScoreEntity p where p.teamId = :teamId")
     fun deleteByTeamId(teamId: UUID): Int
 
-    fun findByTeamIdOrderByTotalDesc(teamId: UUID): List<PairScoreEntity>
+    // id breaks ties deterministically so enrichment and the report agree on best/worst.
+    fun findByTeamIdOrderByTotalDescIdAsc(teamId: UUID): List<PairScoreEntity>
+
+    @Transactional
+    @Modifying
+    @Query("update PairScoreEntity p set p.reason = :reason where p.id = :id")
+    fun updateReason(@Param("id") id: UUID, @Param("reason") reason: String): Int
 }
 
 @Entity
@@ -66,6 +83,18 @@ class TeamAnalysisEntity(
     @JdbcTypeCode(SqlTypes.JSON) @Column(name = "element_totals", nullable = false) val elementTotals: String,
     @Column(name = "risk_note") val riskNote: String?,
     @Column(name = "analyzed_at", nullable = false) val analyzedAt: Instant,
+    var intro: String? = null, // judge-accepted LLM team intro
 )
 
-interface TeamAnalysisRepository : JpaRepository<TeamAnalysisEntity, UUID>
+interface TeamAnalysisRepository : JpaRepository<TeamAnalysisEntity, UUID> {
+    // analyzedAt acts as a run token: an enrich grounded on an older analysis
+    // updates 0 rows instead of overwriting a newer one.
+    @Transactional
+    @Modifying
+    @Query("update TeamAnalysisEntity t set t.intro = :intro where t.teamId = :teamId and t.analyzedAt = :analyzedAt")
+    fun updateIntro(
+        @Param("teamId") teamId: UUID,
+        @Param("intro") intro: String,
+        @Param("analyzedAt") analyzedAt: Instant,
+    ): Int
+}

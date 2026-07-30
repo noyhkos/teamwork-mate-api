@@ -40,16 +40,36 @@ private val GOLDEN = """
     }
 """.trimIndent()
 
+/** Same chart with the hour pillar removed — mirrors calc's birthTimeKnown=false path. */
+private val GOLDEN_NO_HOUR = """
+    {
+      "birthTimeKnown": false,
+      "solarDate": "2000-01-27",
+      "pillars": {"year":{"ganzhi":"己卯"},"month":{"ganzhi":"丁丑"},"day":{"ganzhi":"甲申"}},
+      "dayMaster": {"stem":"甲","stemKo":"갑","element":"목"},
+      "fiveElements": {"목":2,"화":1,"토":2,"금":1,"수":0},
+      "tenGods": {"year":{"stem":"정재","branch":"겁재"},"month":{"stem":"상관","branch":"정재"},
+                  "day":{"stem":"(일간)","branch":"편관"}},
+      "dayStrength": null,
+      "geukguk": null,
+      "samjae": {"inSamjae":true,"phase":"눌삼재","cycleBranches":["巳","午","未"],"targetYearGanzhi":"丙午"},
+      "compactText": "compact-no-hour",
+      "calcVersion": "ssaju@0.2.0"
+    }
+""".trimIndent()
+
 @TestConfiguration
 class FakeCalcConfig {
     @Bean
     @Primary
     fun fakeCalcPort(om: ObjectMapper): CalcPort = object : CalcPort {
-        override fun fetchFacts(member: Member, now: Instant): JsonNode = om.readTree(GOLDEN)
+        override fun fetchFacts(member: Member, now: Instant): JsonNode =
+            om.readTree(if (member.birthTime == null) GOLDEN_NO_HOUR else GOLDEN)
     }
 }
 
-@SpringBootTest
+// Force-blank the LLM key so this class always exercises the phrase-layer-disabled path.
+@SpringBootTest(properties = ["llm.gemini.api-key="])
 @AutoConfigureMockMvc
 @Import(FakeCalcConfig::class)
 class AnalysisApiTest(@Autowired val mvc: MockMvc) {
@@ -78,6 +98,7 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
             .andExpect(jsonPath("$.pairs").value(6)) // C(4,2)
             .andExpect(jsonPath("$.archetype").isNotEmpty)
             .andExpect(jsonPath("$.shareSlug").isNotEmpty)
+            .andExpect(jsonPath("$.phrases").value("skipped")) // no LLM key in this context
 
         val report = mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -87,6 +108,8 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
             .andExpect(jsonPath("$.harmonyScore").isNumber)
             .andExpect(jsonPath("$.samjaeMembers.length()").value(4)) // golden chart is in samjae
             .andExpect(jsonPath("$.riskNote").isNotEmpty)
+            .andExpect(jsonPath("$.llmPhrases").value(false))
+            .andExpect(jsonPath("$.roles[0].reason").isNotEmpty) // deterministic template fallback
             .andReturn().response.contentAsString
 
         // roles are unique across 4 members
