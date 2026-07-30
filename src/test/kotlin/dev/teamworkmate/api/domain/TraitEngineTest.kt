@@ -17,6 +17,7 @@ class TraitEngineTest {
      * 오행 목2 화2 토3 금1 수0 / 십신 재성3 식상2 관성1 비겁1 인성0 / 신강약 neutral.
      */
     private val goldenSaju = SajuSummary.fromRaw(
+        dayMasterStem = "甲",
         elementsKo = mapOf("목" to 2, "화" to 2, "토" to 3, "금" to 1, "수" to 0),
         gods = listOf("정재", "상관", "정재", "식신", "편관", "정재", "겁재", "(일간)"),
         strength = DayStrength.NEUTRAL,

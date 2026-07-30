@@ -29,13 +29,20 @@ enum class DayStrength { STRONG, NEUTRAL, WEAK }
  * When birth time is unknown, counts cover 3 pillars only and [strength] is null.
  */
 data class SajuSummary(
+    val dayMasterStem: String, // hanja, e.g. "甲"
     val elementCounts: Map<Element, Int>,
     val tenGodCounts: Map<TenGodGroup, Int>,
     val strength: DayStrength?,
     val birthTimeKnown: Boolean,
 ) {
+    val dayMasterElement: Element =
+        requireNotNull(SajuRelations.STEM_ELEMENT[dayMasterStem]) { "unknown day stem: $dayMasterStem" }
+
     val elementTotal: Int = elementCounts.values.sum()
     val tenGodTotal: Int = tenGodCounts.values.sum()
+
+    fun lacks(e: Element): Boolean = elementCounts.getOrDefault(e, 0) == 0
+    fun has(e: Element): Boolean = elementCounts.getOrDefault(e, 0) > 0
 
     fun elementRatio(e: Element): Double =
         if (elementTotal == 0) 0.0 else elementCounts.getOrDefault(e, 0).toDouble() / elementTotal
@@ -46,6 +53,7 @@ data class SajuSummary(
     companion object {
         /** Builds from raw korean god names, ignoring the day-master placeholder. */
         fun fromRaw(
+            dayMasterStem: String,
             elementsKo: Map<String, Int>,
             gods: List<String>,
             strength: DayStrength?,
@@ -54,7 +62,7 @@ data class SajuSummary(
             val elems = elementsKo.entries.associate { (k, v) -> Element.fromKo(k) to v }
             val godCounts = gods.mapNotNull { TenGodGroup.ofGod(it) }
                 .groupingBy { it }.eachCount()
-            return SajuSummary(elems, godCounts, strength, birthTimeKnown)
+            return SajuSummary(dayMasterStem, elems, godCounts, strength, birthTimeKnown)
         }
     }
 }

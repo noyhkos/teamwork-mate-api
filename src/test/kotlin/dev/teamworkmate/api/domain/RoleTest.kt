@@ -17,6 +17,7 @@ class RoleTest {
         TraitVector(Trait.entries.associateWith { 50 } + highs.toMap())
 
     private val plainSaju = SajuSummary.fromRaw(
+        dayMasterStem = "丙",
         elementsKo = mapOf("목" to 2, "화" to 2, "토" to 2, "금" to 1, "수" to 1),
         gods = listOf("비견", "식신", "정재", "정관", "정인"),
         strength = DayStrength.NEUTRAL,
@@ -39,6 +40,7 @@ class RoleTest {
     @Test
     fun `jaeseong-heavy saju boosts treasurer`() {
         val jaeseongSaju = SajuSummary.fromRaw(
+            dayMasterStem = "丙",
             elementsKo = mapOf("목" to 2, "화" to 2, "토" to 2, "금" to 1, "수" to 1),
             gods = listOf("정재", "편재", "정재", "편재"),
             strength = DayStrength.NEUTRAL,
