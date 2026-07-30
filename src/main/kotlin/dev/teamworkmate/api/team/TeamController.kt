@@ -18,22 +18,38 @@ data class TeamCreatedResponse(
     val adminToken: String,
 )
 
-/** Member view — must never leak the admin token. */
+/** Member view — must never leak the admin token nor other members' birth data. */
 data class TeamInviteView(
     val name: String?,
     val status: TeamStatus,
+    val memberCount: Int,
+    val members: List<String>, // nicknames only
 )
 
-/** Admin view — includes the invite token for re-sharing. */
+data class AdminMemberView(
+    val id: String,
+    val nickname: String,
+    val birthDate: String,
+    val birthTime: String?,
+    val gender: String,
+    val mbti: String,
+    val enteredBy: String,
+)
+
+/** Admin view — includes the invite token for re-sharing and full member details. */
 data class TeamAdminView(
     val name: String?,
     val status: TeamStatus,
     val inviteToken: String,
+    val members: List<AdminMemberView>,
 )
 
 @RestController
 @RequestMapping("/api/teams")
-class TeamController(private val service: TeamService) {
+class TeamController(
+    private val service: TeamService,
+    private val memberService: MemberService,
+) {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -45,12 +61,24 @@ class TeamController(private val service: TeamService) {
     @GetMapping("/invite/{token}")
     fun byInvite(@PathVariable token: String): TeamInviteView {
         val team = service.byInviteToken(token)
-        return TeamInviteView(team.name, team.status)
+        val members = memberService.listFor(team.id)
+        return TeamInviteView(team.name, team.status, members.size, members.map { it.nickname })
     }
 
     @GetMapping("/admin/{token}")
     fun byAdmin(@PathVariable token: String): TeamAdminView {
         val team = service.byAdminToken(token)
-        return TeamAdminView(team.name, team.status, team.inviteToken)
+        val members = memberService.listFor(team.id).map {
+            AdminMemberView(
+                id = it.id.toString(),
+                nickname = it.nickname,
+                birthDate = it.birthDate.toString(),
+                birthTime = it.birthTime?.toString(),
+                gender = it.gender,
+                mbti = it.mbti,
+                enteredBy = it.enteredBy,
+            )
+        }
+        return TeamAdminView(team.name, team.status, team.inviteToken, members)
     }
 }
