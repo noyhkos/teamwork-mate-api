@@ -4,7 +4,6 @@ import dev.teamworkmate.api.domain.pairs.PairFactor
 import dev.teamworkmate.api.domain.roles.Role
 import dev.teamworkmate.api.facts.SajuFactsRepository
 import dev.teamworkmate.api.llm.PhrasePrompts
-import dev.teamworkmate.api.llm.PhraseService
 import dev.teamworkmate.api.team.MemberService
 import dev.teamworkmate.api.team.Team
 import dev.teamworkmate.api.team.TeamRepository
@@ -43,10 +42,8 @@ data class ReportView(
     val llmPhrases: Boolean,
 )
 
-data class AnalyzeResponse(
-    val members: Int, val pairs: Int, val archetype: String, val harmony: Int, val shareSlug: String,
-    val phrases: String, // llm | partial | failed | skipped
-)
+/** 202 body — the work runs on the worker; poll the admin view for the terminal state. */
+data class AnalyzeAccepted(val status: TeamStatus, val pollUrl: String)
 
 @RestController
 @RequestMapping("/api")
@@ -54,24 +51,21 @@ class ReportController(
     private val teamService: TeamService,
     private val teams: TeamRepository,
     private val memberService: MemberService,
-    private val analysisService: AnalysisService,
+    private val jobService: AnalysisJobService,
     private val roleScores: RoleScoreRepository,
     private val pairScores: PairScoreRepository,
     private val teamAnalysis: TeamAnalysisRepository,
     private val sajuFacts: SajuFactsRepository,
     private val cardClient: CardClient,
-    private val phraseService: PhraseService,
     private val om: ObjectMapper,
 ) {
 
     @PostMapping("/teams/admin/{token}/analyze")
-    fun analyze(@PathVariable token: String): AnalyzeResponse {
+    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.ACCEPTED)
+    fun analyze(@PathVariable token: String): AnalyzeAccepted {
         val team = teamService.byAdminToken(token)
-        val now = Instant.now()
-        val summary = analysisService.analyze(team, now)
-        // Best-effort phrase layer — never fails the analysis, never serves unjudged text.
-        val phrases = phraseService.enrich(team, now)
-        return AnalyzeResponse(summary.members, summary.pairs, summary.archetype, summary.harmony, summary.shareSlug, phrases)
+        jobService.submit(team)
+        return AnalyzeAccepted(TeamStatus.processing, "/api/teams/admin/$token")
     }
 
     @GetMapping("/teams/invite/{token}/report")

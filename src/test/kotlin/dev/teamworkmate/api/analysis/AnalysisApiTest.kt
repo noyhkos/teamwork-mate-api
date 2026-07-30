@@ -22,7 +22,7 @@ import java.time.Instant
 import kotlin.test.Test
 
 /** Golden calc response (석현 chart), reused for every member — differentiation comes from MBTI. */
-private val GOLDEN = """
+internal val GOLDEN = """
     {
       "birthTimeKnown": true,
       "solarDate": "2000-01-27",
@@ -68,8 +68,9 @@ class FakeCalcConfig {
     }
 }
 
-// Force-blank the LLM key so this class always exercises the phrase-layer-disabled path.
-@SpringBootTest(properties = ["llm.gemini.api-key="])
+// Blank LLM key = phrase layer disabled; direct queue = the worker runs inline,
+// so the POST returns only after the analysis has finished.
+@SpringBootTest(properties = ["llm.gemini.api-key=", "queue.mode=direct"])
 @AutoConfigureMockMvc
 @Import(FakeCalcConfig::class)
 class AnalysisApiTest(@Autowired val mvc: MockMvc) {
@@ -93,12 +94,13 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
         val (invite, admin) = setupTeam(listOf("ENTJ", "ISFP", "ESFJ", "INTP"))
 
         mvc.perform(post("/api/teams/admin/$admin/analyze"))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.members").value(4))
-            .andExpect(jsonPath("$.pairs").value(6)) // C(4,2)
-            .andExpect(jsonPath("$.archetype").isNotEmpty)
+            .andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.status").value("processing"))
+            .andExpect(jsonPath("$.pollUrl").value("/api/teams/admin/$admin"))
+
+        mvc.perform(get("/api/teams/admin/$admin"))
+            .andExpect(jsonPath("$.status").value("done"))
             .andExpect(jsonPath("$.shareSlug").isNotEmpty)
-            .andExpect(jsonPath("$.phrases").value("skipped")) // no LLM key in this context
 
         val report = mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -125,11 +127,15 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
 
     @Test
     fun `analyze is idempotent - rerun replaces scores`() {
-        val (_, admin) = setupTeam(listOf("ENTJ", "ISFP"))
-        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isOk)
-        mvc.perform(post("/api/teams/admin/$admin/analyze"))
+        val (invite, admin) = setupTeam(listOf("ENTJ", "ISFP"))
+        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
+        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
+
+        mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.pairs").value(1))
+            .andExpect(jsonPath("$.roles.length()").value(2))
+            .andExpect(jsonPath("$.bestPair.total").isNumber) // C(2,2) == 1 pair
+            .andExpect(jsonPath("$.worstPair").doesNotExist())
     }
 
     @Test

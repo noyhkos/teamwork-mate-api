@@ -38,22 +38,17 @@ class AnalysisService(
 
     /**
      * Deterministic pipeline: facts -> traits -> roles -> pairs -> team analysis.
-     * Synchronous for now; the queue worker will call exactly this method later.
+     * Called by the queue worker; AnalysisJobService owns the state machine, so this
+     * method assumes the team is already claimed and only reports the terminal state.
      */
     @Transactional
     fun analyze(team: Team, now: Instant): Summary {
-        if (team.status == TeamStatus.processing) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "analysis already running")
-        }
         val members = memberService.listFor(team.id)
         if (members.size < 2) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "need at least 2 members (have ${members.size})")
         }
 
-        team.status = TeamStatus.processing
-        teams.saveAndFlush(team)
-
-        try {
+        run {
             val profiles = members.map { member ->
                 val facts = sajuFactsService.computeAndStore(member, now)
                 val summary = SajuSummaryFactory.fromFacts(facts, om)
@@ -133,23 +128,13 @@ class AnalysisService(
                 ),
             )
 
+            // The terminal status is set by AnalysisJobService once the phrase layer
+            // has also run — otherwise the first view of the report is half-written.
             if (team.shareSlug == null) team.shareSlug = TokenGenerator.generate(12)
-            team.status = TeamStatus.done
             teams.save(team)
 
             return Summary(profiles.size, pairEntities.size, archetype.name, harmony, team.shareSlug!!)
-        } catch (e: ResponseStatusException) {
-            markFailed(team)
-            throw e
-        } catch (e: Exception) {
-            markFailed(team)
-            throw ResponseStatusException(HttpStatus.BAD_GATEWAY, "analysis failed: ${e.message}", e)
         }
-    }
-
-    private fun markFailed(team: Team) {
-        team.status = TeamStatus.failed
-        teams.save(team)
     }
 
     /** Average pair total minus a spread penalty — one explosive pair drags the vibe. */

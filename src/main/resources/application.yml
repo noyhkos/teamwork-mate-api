@@ -26,6 +26,11 @@ server:
 calc:
   base-url: http://localhost:3001
 
+# direct = run inline (tests), memory = background worker thread (local dev).
+# SQS replaces this in the deployed stack without touching callers.
+queue:
+  mode: ${QUEUE_MODE:memory}
+
 llm:
   # Blank key disables the phrase layer entirely — reports fall back to templates.
   gemini:

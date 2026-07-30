@@ -82,7 +82,8 @@ class FakeLlmConfig {
     fun scriptedLlm(): ScriptedLlm = ScriptedLlm()
 }
 
-@SpringBootTest
+// direct queue: the worker runs inline, so a POST returns once analysis + phrases are done.
+@SpringBootTest(properties = ["queue.mode=direct"])
 @AutoConfigureMockMvc
 @Import(FakeCalcConfig::class, FakeLlmConfig::class)
 class LlmPhraseApiTest(
@@ -120,12 +121,14 @@ class LlmPhraseApiTest(
         return invite to admin
     }
 
-    private fun analyze(admin: String, expectedPhrases: String): String =
-        mvc.perform(post("/api/teams/admin/$admin/analyze"))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.phrases").value(expectedPhrases))
+    /** Fires the job and returns the share slug once the inline worker has finished. */
+    private fun analyze(admin: String): String {
+        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
+        val view = mvc.perform(get("/api/teams/admin/$admin"))
+            .andExpect(jsonPath("$.status").value("done"))
             .andReturn().response.contentAsString
-            .let { JsonPath.read<String>(it, "$.shareSlug") }
+        return JsonPath.read<String>(view, "$.shareSlug")
+    }
 
     private fun generationsFor(slug: String) =
         generations.findByTeamIdOrderByCreatedAt(teams.findByShareSlug(slug)!!.id)
@@ -133,7 +136,7 @@ class LlmPhraseApiTest(
     @Test
     fun `accepted path - judged text is served and audited`() {
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "llm")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -153,9 +156,20 @@ class LlmPhraseApiTest(
     }
 
     @Test
+    fun `status flips to done only after the phrase layer has run`() {
+        val (invite, admin) = setupTeam()
+        analyze(admin) // asserts status == done
+
+        // If `done` were set before enrichment, this would still be the template.
+        mvc.perform(get("/api/teams/invite/$invite/report"))
+            .andExpect(jsonPath("$.intro").value("LLM: 팀 소개 문구"))
+            .andExpect(jsonPath("$.bestPair.reason").value("LLM: best 페어 문구"))
+    }
+
+    @Test
     fun `grounding never leaks unknown hour facts for a member without birth time`() {
         val (_, admin) = setupTeam()
-        val slug = analyze(admin, "llm")
+        val slug = analyze(admin)
 
         // jsonb normalizes key order and spacing, so match tolerantly.
         val roleGrounding = generationsFor(slug).first { it.kind == "role_reasons" }.grounding
@@ -172,7 +186,7 @@ class LlmPhraseApiTest(
     fun `judge rejects - report falls back to template and retry carries feedback`() {
         llm.judgeFaithful = false
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "failed")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -198,7 +212,7 @@ class LlmPhraseApiTest(
         // per kind: attempt-1 unfaithful, attempt-2 faithful (3 kinds run sequentially)
         llm.judgeVerdicts.addAll(listOf(false, true, false, true, false, true))
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "llm")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -214,7 +228,7 @@ class LlmPhraseApiTest(
     fun `one kind fails - other kinds still serve LLM text (partial)`() {
         llm.failKinds = setOf("pair_chemistry")
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "partial")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -233,7 +247,7 @@ class LlmPhraseApiTest(
     fun `llm outage - analysis still succeeds, generations recorded as failed`() {
         llm.failGeneration = true
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "failed")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -249,7 +263,7 @@ class LlmPhraseApiTest(
     fun `judge outage - unverified text is never served and retries stop`() {
         llm.failJudge = true
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "failed")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -268,7 +282,7 @@ class LlmPhraseApiTest(
     fun `malformed judge JSON - nothing served, every call still audited`() {
         llm.malformedJudge = true
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "failed")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
@@ -285,7 +299,7 @@ class LlmPhraseApiTest(
     fun `llm omits a member - role phrases fall back wholesale, no partial row updates`() {
         llm.omitNickname = "멤버1"
         val (invite, admin) = setupTeam()
-        val slug = analyze(admin, "partial")
+        val slug = analyze(admin)
 
         mvc.perform(get("/api/teams/invite/$invite/report"))
             .andExpect(status().isOk)
