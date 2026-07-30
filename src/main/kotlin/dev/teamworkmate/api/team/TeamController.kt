@@ -24,6 +24,7 @@ data class TeamInviteView(
     val status: TeamStatus,
     val memberCount: Int,
     val members: List<String>, // nicknames only
+    val shareSlug: String?, // set once analysis is done
 )
 
 data class AdminMemberView(
@@ -42,6 +43,7 @@ data class TeamAdminView(
     val status: TeamStatus,
     val inviteToken: String,
     val members: List<AdminMemberView>,
+    val shareSlug: String?,
 )
 
 @RestController
@@ -62,7 +64,7 @@ class TeamController(
     fun byInvite(@PathVariable token: String): TeamInviteView {
         val team = service.byInviteToken(token)
         val members = memberService.listFor(team.id)
-        return TeamInviteView(team.name, team.status, members.size, members.map { it.nickname })
+        return TeamInviteView(team.name, team.status, members.size, members.map { it.nickname }, team.shareSlug)
     }
 
     @GetMapping("/admin/{token}")
@@ -79,6 +81,6 @@ class TeamController(
                 enteredBy = it.enteredBy,
             )
         }
-        return TeamAdminView(team.name, team.status, team.inviteToken, members)
+        return TeamAdminView(team.name, team.status, team.inviteToken, members, team.shareSlug)
     }
 }
