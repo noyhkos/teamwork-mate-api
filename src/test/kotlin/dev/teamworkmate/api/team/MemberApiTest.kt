@@ -45,15 +45,20 @@ class MemberApiTest(
         mvc.perform(post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON).content(memberJson("영희", birthTime = "null")))
             .andExpect(status().isCreated)
 
-        // nicknames only — birth data never comes back out, for any holder of the link
+        // the roster carries what the waiting screen renders — and nothing else
         val view = mvc.perform(get("/api/teams/$token"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.memberCount").value(2))
-            .andExpect(jsonPath("$.members[0]").value("석현"))
-            .andExpect(jsonPath("$.members[1]").value("영희"))
+            .andExpect(jsonPath("$.members[0].nickname").value("석현"))
+            .andExpect(jsonPath("$.members[0].birthDate").value("2000-01-27"))
+            .andExpect(jsonPath("$.members[0].mbti").value("ENTJ"))
+            .andExpect(jsonPath("$.members[1].nickname").value("영희"))
             .andReturn().response.contentAsString
-        assertFalse(view.contains("2000-01-27"))
+
+        // birth time, gender and calendar are calc inputs, never roster fields
         assertFalse(view.contains("10:30"))
+        assertFalse(view.contains("\"gender\""))
+        assertFalse(view.contains("\"calendar\""))
     }
 
     @Test
