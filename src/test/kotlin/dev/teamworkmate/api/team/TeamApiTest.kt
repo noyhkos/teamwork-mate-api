@@ -57,6 +57,18 @@ class TeamApiTest(@Autowired val mvc: MockMvc) {
     }
 
     @Test
+    fun `a rejected body explains itself in Korean`() {
+        // Two different exceptions reach here and neither used to be handled:
+        // a missing field never survives Jackson, and a blank one fails bean
+        // validation. Both reached the browser as a bare "Bad Request".
+        listOf("{}", """{"name":"  "}""").forEach { body ->
+            mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.detail").value("입력한 내용을 다시 확인해 주세요."))
+        }
+    }
+
+    @Test
     fun `the name is trimmed on the way in`() {
         val body = mvc.perform(
             post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"  여백팀  "}"""),
