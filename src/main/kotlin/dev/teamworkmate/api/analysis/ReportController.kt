@@ -42,7 +42,7 @@ data class ReportView(
     val llmPhrases: Boolean,
 )
 
-/** 202 body — the work runs on the worker; poll the admin view for the terminal state. */
+/** 202 body — the work runs on the worker; poll the team view for the terminal state. */
 data class AnalyzeAccepted(val status: TeamStatus, val pollUrl: String)
 
 @RestController
@@ -60,16 +60,16 @@ class ReportController(
     private val om: ObjectMapper,
 ) {
 
-    @PostMapping("/teams/admin/{token}/analyze")
+    @PostMapping("/teams/{token}/analyze")
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.ACCEPTED)
     fun analyze(@PathVariable token: String): AnalyzeAccepted {
-        val team = teamService.byAdminToken(token)
+        val team = teamService.byToken(token)
         jobService.submit(team)
-        return AnalyzeAccepted(TeamStatus.processing, "/api/teams/admin/$token")
+        return AnalyzeAccepted(TeamStatus.processing, "/api/teams/$token")
     }
 
-    @GetMapping("/teams/invite/{token}/report")
-    fun reportByInvite(@PathVariable token: String): ReportView = buildReport(teamService.byInviteToken(token))
+    @GetMapping("/teams/{token}/report")
+    fun reportByToken(@PathVariable token: String): ReportView = buildReport(teamService.byToken(token))
 
     /** Public share link — read-only view by slug. */
     @GetMapping("/reports/{slug}")

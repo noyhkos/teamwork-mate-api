@@ -11,39 +11,19 @@ import org.springframework.web.bind.annotation.RestController
 
 data class CreateTeamRequest(val name: String? = null)
 
-/** Returned once at creation — the caller must save both URLs. */
-data class TeamCreatedResponse(
-    val teamId: String,
-    val inviteToken: String,
-    val adminToken: String,
-)
+/** Returned once at creation — losing this URL means losing the team. */
+data class TeamCreatedResponse(val teamId: String, val token: String)
 
-/** Member view — must never leak the admin token nor other members' birth data. */
-data class TeamInviteView(
+/**
+ * The only team view there is. Nicknames only: nobody — not even the creator —
+ * has a reason to read someone else's birth data back out of the service.
+ */
+data class TeamView(
     val name: String?,
     val status: TeamStatus,
     val memberCount: Int,
-    val members: List<String>, // nicknames only
+    val members: List<String>,
     val shareSlug: String?, // set once analysis is done
-)
-
-data class AdminMemberView(
-    val id: String,
-    val nickname: String,
-    val birthDate: String,
-    val birthTime: String?,
-    val gender: String,
-    val mbti: String,
-    val enteredBy: String,
-)
-
-/** Admin view — includes the invite token for re-sharing and full member details. */
-data class TeamAdminView(
-    val name: String?,
-    val status: TeamStatus,
-    val inviteToken: String,
-    val members: List<AdminMemberView>,
-    val shareSlug: String?,
 )
 
 @RestController
@@ -57,30 +37,13 @@ class TeamController(
     @ResponseStatus(HttpStatus.CREATED)
     fun create(@RequestBody(required = false) req: CreateTeamRequest?): TeamCreatedResponse {
         val team = service.create(req?.name)
-        return TeamCreatedResponse(team.id.toString(), team.inviteToken, team.adminToken)
+        return TeamCreatedResponse(team.id.toString(), team.accessToken)
     }
 
-    @GetMapping("/invite/{token}")
-    fun byInvite(@PathVariable token: String): TeamInviteView {
-        val team = service.byInviteToken(token)
+    @GetMapping("/{token}")
+    fun byToken(@PathVariable token: String): TeamView {
+        val team = service.byToken(token)
         val members = memberService.listFor(team.id)
-        return TeamInviteView(team.name, team.status, members.size, members.map { it.nickname }, team.shareSlug)
-    }
-
-    @GetMapping("/admin/{token}")
-    fun byAdmin(@PathVariable token: String): TeamAdminView {
-        val team = service.byAdminToken(token)
-        val members = memberService.listFor(team.id).map {
-            AdminMemberView(
-                id = it.id.toString(),
-                nickname = it.nickname,
-                birthDate = it.birthDate.toString(),
-                birthTime = it.birthTime?.toString(),
-                gender = it.gender,
-                mbti = it.mbti,
-                enteredBy = it.enteredBy,
-            )
-        }
-        return TeamAdminView(team.name, team.status, team.inviteToken, members, team.shareSlug)
+        return TeamView(team.name, team.status, members.size, members.map { it.nickname }, team.shareSlug)
     }
 }

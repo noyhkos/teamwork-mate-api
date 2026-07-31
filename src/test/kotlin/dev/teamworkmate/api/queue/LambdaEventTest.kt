@@ -26,31 +26,30 @@ class LambdaEventTest(@Autowired val mvc: MockMvc) {
     private fun sqsEvent(vararg bodies: String): String =
         """{"Records":[${bodies.mapIndexed { i, b -> """{"messageId":"m$i","body":"$b"}""" }.joinToString(",")}]}"""
 
-    private fun teamWithMembers(): Triple<String, String, String> {
+    private fun teamWithMembers(): Pair<String, String> {
         val body = mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"람다팀"}"""))
             .andReturn().response.contentAsString
         val teamId = JsonPath.read<String>(body, "$.teamId")
-        val invite = JsonPath.read<String>(body, "$.inviteToken")
-        val admin = JsonPath.read<String>(body, "$.adminToken")
+        val token = JsonPath.read<String>(body, "$.token")
         listOf("ENTJ", "ISFP").forEachIndexed { i, mbti ->
             mvc.perform(
-                post("/api/teams/invite/$invite/members").contentType(MediaType.APPLICATION_JSON)
+                post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),
             ).andExpect(status().isCreated)
         }
-        return Triple(teamId, invite, admin)
+        return teamId to token
     }
 
     @Test
     fun `an SQS batch runs the job and reports no failures`() {
-        val (teamId, invite, admin) = teamWithMembers()
+        val (teamId, token) = teamWithMembers()
 
         mvc.perform(post("/events").contentType(MediaType.APPLICATION_JSON).content(sqsEvent(teamId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.batchItemFailures.length()").value(0))
 
-        mvc.perform(get("/api/teams/admin/$admin")).andExpect(jsonPath("$.status").value("done"))
-        mvc.perform(get("/api/teams/invite/$invite/report")).andExpect(status().isOk)
+        mvc.perform(get("/api/teams/$token")).andExpect(jsonPath("$.status").value("done"))
+        mvc.perform(get("/api/teams/$token/report")).andExpect(status().isOk)
     }
 
     @Test
@@ -63,14 +62,14 @@ class LambdaEventTest(@Autowired val mvc: MockMvc) {
 
     @Test
     fun `one bad message does not sink the rest of the batch`() {
-        val (teamId, _, admin) = teamWithMembers()
+        val (teamId, token) = teamWithMembers()
 
         mvc.perform(post("/events").contentType(MediaType.APPLICATION_JSON).content(sqsEvent("nope", teamId)))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.batchItemFailures.length()").value(1))
             .andExpect(jsonPath("$.batchItemFailures[0].itemIdentifier").value("m0"))
 
-        mvc.perform(get("/api/teams/admin/$admin")).andExpect(jsonPath("$.status").value("done"))
+        mvc.perform(get("/api/teams/$token")).andExpect(jsonPath("$.status").value("done"))
     }
 
     @Test

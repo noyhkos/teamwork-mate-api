@@ -9,8 +9,7 @@ import org.springframework.web.server.ResponseStatusException
 import java.util.UUID
 
 interface TeamRepository : JpaRepository<Team, UUID> {
-    fun findByInviteToken(token: String): Team?
-    fun findByAdminToken(token: String): Team?
+    fun findByAccessToken(token: String): Team?
     fun findByShareSlug(slug: String): Team?
 }
 
@@ -30,16 +29,11 @@ class TeamService(private val teams: TeamRepository) {
     fun create(name: String?): Team = teams.save(
         Team(
             name = name?.takeIf { it.isNotBlank() },
-            inviteToken = TokenGenerator.generate(),
-            adminToken = TokenGenerator.generate(),
+            accessToken = TokenGenerator.generate(),
         ),
     )
 
     @Transactional(readOnly = true)
-    fun byInviteToken(token: String): Team =
-        teams.findByInviteToken(token) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "team not found")
-
-    @Transactional(readOnly = true)
-    fun byAdminToken(token: String): Team =
-        teams.findByAdminToken(token) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "team not found")
+    fun byToken(token: String): Team =
+        teams.findByAccessToken(token) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "team not found")
 }

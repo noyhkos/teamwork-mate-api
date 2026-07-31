@@ -29,7 +29,7 @@ data class NewMember(
 class MemberService(private val members: MemberRepository) {
 
     @Transactional
-    fun add(team: Team, req: NewMember, enteredBy: String): Member {
+    fun add(team: Team, req: NewMember): Member {
         if (team.status != TeamStatus.collecting) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "team is not collecting members (status=${team.status})")
         }
@@ -42,7 +42,6 @@ class MemberService(private val members: MemberRepository) {
             mbti = req.mbti.uppercase(),
             calendar = req.calendar,
             leapMonth = req.leapMonth,
-            enteredBy = enteredBy,
         )
         try {
             return members.saveAndFlush(member)

@@ -18,36 +18,31 @@ import kotlin.test.assertFalse
 class TeamApiTest(@Autowired val mvc: MockMvc) {
 
     @Test
-    fun `create team, then read via invite and admin capabilities`() {
+    fun `create team, then read it back with the one token`() {
         val body = mvc.perform(
             post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"스터디팀"}"""),
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.inviteToken").isNotEmpty)
-            .andExpect(jsonPath("$.adminToken").isNotEmpty)
+            .andExpect(jsonPath("$.teamId").isNotEmpty)
+            .andExpect(jsonPath("$.token").isNotEmpty)
             .andReturn().response.contentAsString
+        val token = JsonPath.read<String>(body, "$.token")
 
-        val invite = JsonPath.read<String>(body, "$.inviteToken")
-        val admin = JsonPath.read<String>(body, "$.adminToken")
-
-        val inviteBody = mvc.perform(get("/api/teams/invite/$invite"))
+        val view = mvc.perform(get("/api/teams/$token"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.name").value("스터디팀"))
             .andExpect(jsonPath("$.status").value("collecting"))
+            .andExpect(jsonPath("$.memberCount").value(0))
+            .andExpect(jsonPath("$.shareSlug").doesNotExist())
             .andReturn().response.contentAsString
 
-        // capability boundary: the member view must never leak the admin token
-        assertFalse(inviteBody.contains(admin))
-
-        mvc.perform(get("/api/teams/admin/$admin"))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.inviteToken").value(invite))
+        // the token is the capability — the view must not echo it back into shared UI
+        assertFalse(view.contains(token))
     }
 
     @Test
-    fun `unknown tokens are 404`() {
-        mvc.perform(get("/api/teams/invite/nope")).andExpect(status().isNotFound)
-        mvc.perform(get("/api/teams/admin/nope")).andExpect(status().isNotFound)
+    fun `unknown token is 404`() {
+        mvc.perform(get("/api/teams/nope")).andExpect(status().isNotFound)
     }
 
     @Test

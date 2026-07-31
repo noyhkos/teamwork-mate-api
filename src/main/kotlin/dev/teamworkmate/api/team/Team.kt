@@ -20,11 +20,9 @@ class Team(
 
     var name: String? = null,
 
-    @Column(name = "invite_token", nullable = false, unique = true)
-    val inviteToken: String,
-
-    @Column(name = "admin_token", nullable = false, unique = true)
-    val adminToken: String,
+    // Possession of this URL is the permission — there is no second, elevated link.
+    @Column(name = "access_token", nullable = false, unique = true)
+    val accessToken: String,
 
     @Column(name = "share_slug")
     var shareSlug: String? = null,

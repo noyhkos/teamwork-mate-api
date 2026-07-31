@@ -40,9 +40,6 @@ class Member(
     @Column(name = "leap_month", nullable = false)
     val leapMonth: Boolean = false,
 
-    @Column(name = "entered_by", nullable = false)
-    val enteredBy: String, // self | admin
-
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 )

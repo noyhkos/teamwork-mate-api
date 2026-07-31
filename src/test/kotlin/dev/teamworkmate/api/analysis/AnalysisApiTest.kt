@@ -75,34 +75,33 @@ class FakeCalcConfig {
 @Import(FakeCalcConfig::class)
 class AnalysisApiTest(@Autowired val mvc: MockMvc) {
 
-    private fun setupTeam(memberMbtis: List<String>): Pair<String, String> {
+    private fun setupTeam(memberMbtis: List<String>): String {
         val body = mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"분석팀"}"""))
             .andReturn().response.contentAsString
-        val invite = JsonPath.read<String>(body, "$.inviteToken")
-        val admin = JsonPath.read<String>(body, "$.adminToken")
+        val token = JsonPath.read<String>(body, "$.token")
         memberMbtis.forEachIndexed { i, mbti ->
             mvc.perform(
-                post("/api/teams/invite/$invite/members").contentType(MediaType.APPLICATION_JSON)
+                post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),
             ).andExpect(status().isCreated)
         }
-        return invite to admin
+        return token
     }
 
     @Test
     fun `full pipeline - analyze then report`() {
-        val (invite, admin) = setupTeam(listOf("ENTJ", "ISFP", "ESFJ", "INTP"))
+        val token = setupTeam(listOf("ENTJ", "ISFP", "ESFJ", "INTP"))
 
-        mvc.perform(post("/api/teams/admin/$admin/analyze"))
+        mvc.perform(post("/api/teams/$token/analyze"))
             .andExpect(status().isAccepted)
             .andExpect(jsonPath("$.status").value("processing"))
-            .andExpect(jsonPath("$.pollUrl").value("/api/teams/admin/$admin"))
+            .andExpect(jsonPath("$.pollUrl").value("/api/teams/$token"))
 
-        mvc.perform(get("/api/teams/admin/$admin"))
+        mvc.perform(get("/api/teams/$token"))
             .andExpect(jsonPath("$.status").value("done"))
             .andExpect(jsonPath("$.shareSlug").isNotEmpty)
 
-        val report = mvc.perform(get("/api/teams/invite/$invite/report"))
+        val report = mvc.perform(get("/api/teams/$token/report"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.roles.length()").value(4))
             .andExpect(jsonPath("$.bestPair.total").isNumber)
@@ -127,11 +126,11 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
 
     @Test
     fun `analyze is idempotent - rerun replaces scores`() {
-        val (invite, admin) = setupTeam(listOf("ENTJ", "ISFP"))
-        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
-        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
+        val token = setupTeam(listOf("ENTJ", "ISFP"))
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
 
-        mvc.perform(get("/api/teams/invite/$invite/report"))
+        mvc.perform(get("/api/teams/$token/report"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.roles.length()").value(2))
             .andExpect(jsonPath("$.bestPair.total").isNumber) // C(2,2) == 1 pair
@@ -140,19 +139,18 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
 
     @Test
     fun `analyze needs at least 2 members`() {
-        val (_, admin) = setupTeam(listOf("ENTJ"))
-        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isConflict)
+        val token = setupTeam(listOf("ENTJ"))
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isConflict)
     }
 
     @Test
     fun `report before analysis is 404`() {
-        val (invite, _) = setupTeam(listOf("ENTJ", "ISFP"))
-        mvc.perform(get("/api/teams/invite/$invite/report")).andExpect(status().isNotFound)
+        val token = setupTeam(listOf("ENTJ", "ISFP"))
+        mvc.perform(get("/api/teams/$token/report")).andExpect(status().isNotFound)
     }
 
     @Test
-    fun `analyze requires the admin capability, not invite`() {
-        val (invite, _) = setupTeam(listOf("ENTJ", "ISFP"))
-        mvc.perform(post("/api/teams/admin/$invite/analyze")).andExpect(status().isNotFound)
+    fun `analyze with an unknown token is 404`() {
+        mvc.perform(post("/api/teams/${java.util.UUID.randomUUID()}/analyze")).andExpect(status().isNotFound)
     }
 }

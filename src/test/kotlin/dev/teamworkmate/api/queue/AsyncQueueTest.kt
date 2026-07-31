@@ -35,37 +35,36 @@ import kotlin.test.fail
 @Import(FakeCalcConfig::class)
 class AsyncQueueTest(@Autowired val mvc: MockMvc) {
 
-    private fun status(admin: String): String =
-        JsonPath.read(mvc.perform(get("/api/teams/admin/$admin")).andReturn().response.contentAsString, "$.status")
+    private fun status(token: String): String =
+        JsonPath.read(mvc.perform(get("/api/teams/$token")).andReturn().response.contentAsString, "$.status")
 
     @Test
     fun `analyze returns immediately and a background worker finishes the job`() {
         val body = mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"비동기팀"}"""))
             .andReturn().response.contentAsString
-        val invite = JsonPath.read<String>(body, "$.inviteToken")
-        val admin = JsonPath.read<String>(body, "$.adminToken")
+        val token = JsonPath.read<String>(body, "$.token")
         listOf("ENTJ", "ISFP").forEachIndexed { i, mbti ->
             mvc.perform(
-                post("/api/teams/invite/$invite/members").contentType(MediaType.APPLICATION_JSON)
+                post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),
             ).andExpect(status().isCreated)
         }
 
         val startedAt = System.nanoTime()
-        mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
         val submitMs = (System.nanoTime() - startedAt) / 1_000_000
         // The pipeline itself takes far longer than this; a slow return means the
         // work leaked back onto the request thread.
         kotlin.test.assertTrue(submitMs < 1_000, "submit should return promptly, took ${submitMs}ms")
 
         repeat(100) {
-            if (status(admin) == "done") {
-                mvc.perform(get("/api/teams/invite/$invite/report")).andExpect(status().isOk)
+            if (status(token) == "done") {
+                mvc.perform(get("/api/teams/$token/report")).andExpect(status().isOk)
                 return
             }
             Thread.sleep(100)
         }
-        fail("worker did not finish within 10s (status=${status(admin)})")
+        fail("worker did not finish within 10s (status=${status(token)})")
     }
 
 }
@@ -94,19 +93,18 @@ class ConcurrentSubmitTest(@Autowired val mvc: MockMvc, @Autowired val gated: Ga
     fun `duplicate submit while the worker is mid-flight is rejected`() {
         val body = mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"중복팀"}"""))
             .andReturn().response.contentAsString
-        val invite = JsonPath.read<String>(body, "$.inviteToken")
-        val admin = JsonPath.read<String>(body, "$.adminToken")
+        val token = JsonPath.read<String>(body, "$.token")
         listOf("ENTJ", "ISFP").forEachIndexed { i, mbti ->
             mvc.perform(
-                post("/api/teams/invite/$invite/members").contentType(MediaType.APPLICATION_JSON)
+                post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),
             ).andExpect(status().isCreated)
         }
 
         try {
-            mvc.perform(post("/api/teams/admin/$admin/analyze")).andExpect(status().isAccepted)
+            mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
             // The claim commits before the hand-off, so the second submit sees `processing`.
-            val second = mvc.perform(post("/api/teams/admin/$admin/analyze")).andReturn().response.status
+            val second = mvc.perform(post("/api/teams/$token/analyze")).andReturn().response.status
             assertEquals(409, second)
         } finally {
             gated.gate.countDown() // let the worker drain before the context closes
