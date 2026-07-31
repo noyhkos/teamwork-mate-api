@@ -45,7 +45,7 @@ class AnalysisJobService(
         if (members.size < MIN_MEMBERS) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "need at least $MIN_MEMBERS members (have ${members.size})",
+                "${MIN_MEMBERS}명부터 분석할 수 있어요. 지금 ${members.size}명이에요.",
             )
         }
         // Committed before the hand-off, so a duplicate submit sees `processing`
@@ -88,10 +88,10 @@ class TeamStateService(private val teams: TeamRepository) {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun claim(teamId: UUID) {
         val team = teams.findById(teamId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "team not found")
+            ResponseStatusException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없어요. 링크를 다시 확인해 주세요.")
         }
         if (team.status == TeamStatus.processing) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "analysis already running")
+            throw ResponseStatusException(HttpStatus.CONFLICT, "이미 분석이 돌아가고 있어요.")
         }
         team.status = TeamStatus.processing
         teams.save(team)

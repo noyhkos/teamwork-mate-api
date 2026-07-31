@@ -35,5 +35,5 @@ class TeamService(private val teams: TeamRepository) {
 
     @Transactional(readOnly = true)
     fun byToken(token: String): Team =
-        teams.findByAccessToken(token) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "team not found")
+        teams.findByAccessToken(token) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없어요. 링크를 다시 확인해 주세요.")
 }

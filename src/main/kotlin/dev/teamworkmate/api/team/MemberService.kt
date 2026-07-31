@@ -35,7 +35,7 @@ class MemberService(private val members: MemberRepository) {
         // forever and strand whoever had not filled it in yet; a late arrival
         // now joins and the team re-runs.
         if (team.status == TeamStatus.processing) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "analysis is running — try again in a moment")
+            throw ResponseStatusException(HttpStatus.CONFLICT, "분석이 끝난 뒤에 다시 시도해 주세요.")
         }
         val member = Member(
             teamId = team.id,
@@ -50,7 +50,7 @@ class MemberService(private val members: MemberRepository) {
         try {
             return members.saveAndFlush(member)
         } catch (e: DataIntegrityViolationException) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "nickname already exists in this team", e)
+            throw ResponseStatusException(HttpStatus.CONFLICT, "이미 같은 닉네임이 있어요.", e)
         }
     }
 
@@ -62,11 +62,11 @@ class MemberService(private val members: MemberRepository) {
     @Transactional
     fun remove(team: Team, memberId: UUID) {
         if (team.status == TeamStatus.processing) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "analysis is running — try again in a moment")
+            throw ResponseStatusException(HttpStatus.CONFLICT, "분석이 끝난 뒤에 다시 시도해 주세요.")
         }
         val member = members.findById(memberId).orElse(null)
         if (member == null || member.teamId != team.id) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "member not found in this team")
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "이미 지워진 팀원이에요.")
         }
         members.delete(member)
     }

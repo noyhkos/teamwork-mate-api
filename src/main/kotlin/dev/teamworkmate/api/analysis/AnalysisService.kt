@@ -48,7 +48,7 @@ class AnalysisService(
         if (members.size < MIN_MEMBERS) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "need at least $MIN_MEMBERS members (have ${members.size})",
+                "${MIN_MEMBERS}명부터 분석할 수 있어요. 지금 ${members.size}명이에요.",
             )
         }
 

@@ -75,7 +75,7 @@ class ReportController(
     @GetMapping("/reports/{slug}")
     fun reportBySlug(@PathVariable slug: String): ReportView {
         val team = teams.findByShareSlug(slug)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "report not found")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "리포트를 찾을 수 없어요.")
         return buildReport(team)
     }
 
@@ -83,7 +83,7 @@ class ReportController(
     @GetMapping("/reports/{slug}/card.png", produces = [org.springframework.http.MediaType.IMAGE_PNG_VALUE])
     fun cardBySlug(@PathVariable slug: String): org.springframework.http.ResponseEntity<ByteArray> {
         val team = teams.findByShareSlug(slug)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "report not found")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "리포트를 찾을 수 없어요.")
         val png = cardClient.render(buildReport(team))
         return org.springframework.http.ResponseEntity.ok()
             .header("Cache-Control", "public, max-age=3600")
@@ -92,10 +92,10 @@ class ReportController(
 
     private fun buildReport(team: Team): ReportView {
         if (team.status != TeamStatus.done) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "report not ready (status=${team.status})")
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "아직 리포트가 없어요.")
         }
         val analysis = teamAnalysis.findById(team.id)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "report not found") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "리포트를 찾을 수 없어요.") }
 
         val members = memberService.listFor(team.id)
         val nickname: Map<UUID, String> = members.associate { it.id to it.nickname }
