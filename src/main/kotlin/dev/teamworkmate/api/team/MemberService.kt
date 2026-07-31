@@ -30,8 +30,12 @@ class MemberService(private val members: MemberRepository) {
 
     @Transactional
     fun add(team: Team, req: NewMember): Member {
-        if (team.status != TeamStatus.collecting) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "team is not collecting members (status=${team.status})")
+        // Only the worker's own window is closed. Anyone holding the link can
+        // start the analysis, so a single early press used to lock the roster
+        // forever and strand whoever had not filled it in yet; a late arrival
+        // now joins and the team re-runs.
+        if (team.status == TeamStatus.processing) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "analysis is running — try again in a moment")
         }
         val member = Member(
             teamId = team.id,

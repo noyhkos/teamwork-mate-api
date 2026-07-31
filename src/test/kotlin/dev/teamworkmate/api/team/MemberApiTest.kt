@@ -89,7 +89,7 @@ class MemberApiTest(
     }
 
     @Test
-    fun `adding members is blocked unless team is collecting`() {
+    fun `adding is blocked only while the worker is running`() {
         val token = createTeam()
         val team = teamRepository.findByAccessToken(token)!!
         team.status = TeamStatus.processing
@@ -97,6 +97,19 @@ class MemberApiTest(
 
         mvc.perform(post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON).content(memberJson("늦은사람")))
             .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `a late arrival can still join a team that already has a report`() {
+        // Anyone holding the link can start the analysis, so an early press
+        // must not lock everyone else out of the team permanently.
+        val token = createTeam()
+        val team = teamRepository.findByAccessToken(token)!!
+        team.status = TeamStatus.done
+        teamRepository.save(team)
+
+        mvc.perform(post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON).content(memberJson("늦게온사람")))
+            .andExpect(status().isCreated)
     }
 
     @Test
