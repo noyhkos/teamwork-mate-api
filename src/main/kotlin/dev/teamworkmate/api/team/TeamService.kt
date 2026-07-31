@@ -26,9 +26,9 @@ object TokenGenerator {
 class TeamService(private val teams: TeamRepository) {
 
     @Transactional
-    fun create(name: String?): Team = teams.save(
+    fun create(name: String): Team = teams.save(
         Team(
-            name = name?.takeIf { it.isNotBlank() },
+            name = name.trim(),
             accessToken = TokenGenerator.generate(),
         ),
     )

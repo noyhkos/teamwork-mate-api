@@ -12,7 +12,7 @@ class CardClient(@Value("\${calc.base-url}") baseUrl: String) {
 
     fun render(report: ReportView): ByteArray {
         val body = mapOf(
-            "teamName" to (report.teamName ?: "우리 팀"),
+            "teamName" to report.teamName,
             "archetype" to report.archetype,
             "harmonyScore" to report.harmonyScore,
             "roles" to report.roles.map { mapOf("nickname" to it.nickname, "roleKo" to it.roleKo) },

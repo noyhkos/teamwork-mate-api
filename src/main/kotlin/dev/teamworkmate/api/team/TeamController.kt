@@ -1,5 +1,8 @@
 package dev.teamworkmate.api.team
 
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -10,7 +13,11 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 
-data class CreateTeamRequest(val name: String? = null)
+data class CreateTeamRequest(
+    @field:NotBlank
+    @field:Size(max = 40)
+    val name: String,
+)
 
 /** Returned once at creation — losing this URL means losing the team. */
 data class TeamCreatedResponse(val teamId: String, val token: String)
@@ -29,7 +36,7 @@ data class TeamMemberView(
 
 /** The only team view there is. */
 data class TeamView(
-    val name: String?,
+    val name: String,
     val status: TeamStatus,
     val memberCount: Int,
     val members: List<TeamMemberView>,
@@ -45,8 +52,8 @@ class TeamController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun create(@RequestBody(required = false) req: CreateTeamRequest?): TeamCreatedResponse {
-        val team = service.create(req?.name)
+    fun create(@Valid @RequestBody req: CreateTeamRequest): TeamCreatedResponse {
+        val team = service.create(req.name)
         return TeamCreatedResponse(team.id.toString(), team.accessToken)
     }
 

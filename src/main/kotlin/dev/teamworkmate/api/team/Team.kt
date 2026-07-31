@@ -18,7 +18,8 @@ class Team(
     @Id
     val id: UUID = UUID.randomUUID(),
 
-    var name: String? = null,
+    @Column(nullable = false)
+    var name: String,
 
     // Possession of this URL is the permission — there is no second, elevated link.
     @Column(name = "access_token", nullable = false, unique = true)

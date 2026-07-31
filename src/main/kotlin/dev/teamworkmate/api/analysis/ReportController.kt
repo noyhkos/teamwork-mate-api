@@ -26,7 +26,7 @@ data class RoleView(
 )
 data class PairView(val a: String, val b: String, val total: Int, val factors: List<String>, val reason: String?)
 data class ReportView(
-    val teamName: String?,
+    val teamName: String,
     val archetype: String,
     val archetypeDesc: String?,
     val intro: String?, // LLM team intro; null falls back to archetypeDesc in the UI

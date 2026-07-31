@@ -46,9 +46,23 @@ class TeamApiTest(@Autowired val mvc: MockMvc) {
     }
 
     @Test
-    fun `create works without a body`() {
-        mvc.perform(post("/api/teams"))
-            .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.teamId").isNotEmpty)
+    fun `a team must be named`() {
+        // The waiting screen puts the name in its title slot, so a nameless
+        // team would render as a hole rather than a team.
+        listOf("", "{}", """{"name":""}""", """{"name":"   "}""").forEach { body ->
+            mvc.perform(
+                post("/api/teams").contentType(MediaType.APPLICATION_JSON).content(body),
+            ).andExpect(status().isBadRequest)
+        }
+    }
+
+    @Test
+    fun `the name is trimmed on the way in`() {
+        val body = mvc.perform(
+            post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"  여백팀  "}"""),
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+
+        mvc.perform(get("/api/teams/${JsonPath.read<String>(body, "$.token")}"))
+            .andExpect(jsonPath("$.name").value("여백팀"))
     }
 }
