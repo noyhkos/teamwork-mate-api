@@ -54,6 +54,23 @@ class MemberService(private val members: MemberRepository) {
         }
     }
 
+    /**
+     * Scores, saju facts and pair rows all cascade from members in the DB, so
+     * removing a member leaves no orphans behind — only a report that no
+     * longer matches the roster, which TeamView flags as stale.
+     */
+    @Transactional
+    fun remove(team: Team, memberId: UUID) {
+        if (team.status == TeamStatus.processing) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "analysis is running — try again in a moment")
+        }
+        val member = members.findById(memberId).orElse(null)
+        if (member == null || member.teamId != team.id) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "member not found in this team")
+        }
+        members.delete(member)
+    }
+
     @Transactional(readOnly = true)
     fun listFor(teamId: UUID): List<Member> = members.findByTeamIdOrderByCreatedAt(teamId)
 }

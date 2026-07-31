@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.UUID
 
 data class AddMemberRequest(
     @field:NotBlank
@@ -53,5 +55,12 @@ class MemberController(
         val team = teamService.byToken(token)
         val member = memberService.add(team, req.toNewMember())
         return MemberCreatedResponse(member.id.toString(), member.nickname)
+    }
+
+    /** Typos and duplicates happen; the same link that added someone removes them. */
+    @DeleteMapping("/{token}/members/{memberId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun remove(@PathVariable token: String, @PathVariable memberId: UUID) {
+        memberService.remove(teamService.byToken(token), memberId)
     }
 }

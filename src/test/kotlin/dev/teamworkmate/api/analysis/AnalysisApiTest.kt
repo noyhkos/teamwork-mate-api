@@ -191,6 +191,24 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
     }
 
     @Test
+    fun `a member who joins after the run marks the report stale`() {
+        val token = setupTeam(listOf("ENTJ", "ISFP", "INFJ"))
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
+        mvc.perform(get("/api/teams/$token")).andExpect(jsonPath("$.staleReport").value(false))
+
+        mvc.perform(
+            post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"nickname":"늦은사람","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"ENFP"}"""),
+        ).andExpect(status().isCreated)
+
+        mvc.perform(get("/api/teams/$token")).andExpect(jsonPath("$.staleReport").value(true))
+
+        // re-running clears it
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
+        mvc.perform(get("/api/teams/$token")).andExpect(jsonPath("$.staleReport").value(false))
+    }
+
+    @Test
     fun `analyze with an unknown token is 404`() {
         mvc.perform(post("/api/teams/${java.util.UUID.randomUUID()}/analyze")).andExpect(status().isNotFound)
     }

@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -110,6 +111,33 @@ class MemberApiTest(
 
         mvc.perform(post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON).content(memberJson("늦게온사람")))
             .andExpect(status().isCreated)
+    }
+
+    @Test
+    fun `a member can be removed with the same link that added them`() {
+        val token = createTeam()
+        val body = mvc.perform(
+            post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON).content(memberJson("오타난이름")),
+        ).andReturn().response.contentAsString
+        val memberId = JsonPath.read<String>(body, "$.memberId")
+
+        mvc.perform(delete("/api/teams/$token/members/$memberId")).andExpect(status().isNoContent)
+        mvc.perform(get("/api/teams/$token")).andExpect(jsonPath("$.memberCount").value(0))
+
+        // gone for good — a second delete finds nothing
+        mvc.perform(delete("/api/teams/$token/members/$memberId")).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `a member of another team cannot be removed through this link`() {
+        val mine = createTeam()
+        val theirs = createTeam()
+        val body = mvc.perform(
+            post("/api/teams/$theirs/members").contentType(MediaType.APPLICATION_JSON).content(memberJson("남의팀원")),
+        ).andReturn().response.contentAsString
+
+        mvc.perform(delete("/api/teams/$mine/members/${JsonPath.read<String>(body, "$.memberId")}"))
+            .andExpect(status().isNotFound)
     }
 
     @Test
