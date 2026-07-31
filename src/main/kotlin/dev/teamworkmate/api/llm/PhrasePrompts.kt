@@ -58,11 +58,15 @@ object PhrasePrompts {
     /** Primary trait axes per role — mirrors RoleScorer weights for grounding/templates. */
     val ROLE_BASIS: Map<Role, List<String>> = mapOf(
         Role.LEADER to listOf("리더십", "추진력"),
-        Role.VICE to listOf("리더십", "조율력"),
+        Role.STRATEGIST to listOf("창의성", "신중함", "인성 기운"),
         Role.TREASURER to listOf("꼼꼼함", "안정감", "재성 기운"),
-        Role.MOOD to listOf("사교성", "식상 기운"),
+        Role.FIXER to listOf("추진력", "리더십", "비겁 기운"),
+        Role.ENFORCER to listOf("신중함", "리더십", "관성 기운"),
         Role.IDEA to listOf("창의성", "추진력"),
+        Role.DIPLOMAT to listOf("사교성", "조율력", "재성 기운"),
         Role.MEDIATOR to listOf("조율력", "안정감"),
+        Role.MOOD to listOf("사교성", "식상 기운"),
+        Role.SCRIBE to listOf("꼼꼼함", "인성 기운"),
         Role.BRAKE to listOf("신중함", "꼼꼼함"),
         // MEMBER has no formula of its own; the score it carries is the member's
         // best specialized fitness, so the basis is "no single axis stands out".

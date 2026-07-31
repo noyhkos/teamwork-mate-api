@@ -7,39 +7,62 @@ data class RoleAssignment(
 )
 
 /**
- * Greedy global assignment: highest (member, role) score first, one role per
- * member, each specialized role held by exactly one person. Whoever is left
- * once the seven rungs are taken becomes a plain MEMBER — the team is larger
- * than the ladder, not the person a worse fit.
- * Ties break by memberId then role ordinal so results are fully deterministic.
+ * Two passes, then a fallback.
+ *
+ * 1. **Core rungs, unconditionally.** LEADER and STRATEGIST go to the best
+ *    remaining candidate for each, in ladder order. A purely greedy pass used
+ *    to leave small teams with no 리더 at all — every member's best-fitting
+ *    role simply happened to be something else — which reads as a broken
+ *    report rather than an honest one.
+ * 2. **Everyone else by best fit.** The remaining members and roles are matched
+ *    greedily on the highest (member, role) score, one role per person.
+ * 3. **MEMBER** takes whoever is left once the ladder runs out, carrying their
+ *    best specialized score.
+ *
+ * Ties break by memberId then role ordinal, so results are fully deterministic.
  */
 object RoleAssigner {
 
     fun assign(scoresByMember: Map<String, Map<Role, Double>>): List<RoleAssignment> {
-        val triples = scoresByMember
-            .flatMap { (m, rs) -> rs.filterKeys { it != Role.MEMBER }.map { (r, s) -> Triple(m, r, s) } }
+        val takenMembers = mutableSetOf<String>()
+        val takenRoles = mutableSetOf<Role>()
+        val result = mutableListOf<RoleAssignment>()
+
+        fun scoreOf(member: String, role: Role) = scoresByMember[member]?.get(role) ?: 0.0
+
+        for (role in Role.CORE) {
+            val best = scoresByMember.keys
+                .filter { it !in takenMembers }
+                .sortedWith(compareByDescending<String> { scoreOf(it, role) }.thenBy { it })
+                .firstOrNull() ?: break
+            result += RoleAssignment(best, role, scoreOf(best, role))
+            takenMembers += best
+            takenRoles += role
+        }
+
+        val candidates = scoresByMember
+            .filterKeys { it !in takenMembers }
+            .flatMap { (m, rs) ->
+                rs.filterKeys { it != Role.MEMBER && it !in takenRoles }.map { (r, s) -> Triple(m, r, s) }
+            }
             .sortedWith(
                 compareByDescending<Triple<String, Role, Double>> { it.third }
                     .thenBy { it.first }
                     .thenBy { it.second.ordinal },
             )
 
-        val assignedMembers = mutableSetOf<String>()
-        val assignedRoles = mutableSetOf<Role>()
-        val result = mutableListOf<RoleAssignment>()
-
-        for ((member, role, score) in triples) {
-            if (member in assignedMembers || role in assignedRoles) continue
+        for ((member, role, score) in candidates) {
+            if (member in takenMembers || role in takenRoles) continue
             result += RoleAssignment(member, role, score)
-            assignedMembers += member
-            assignedRoles += role
+            takenMembers += member
+            takenRoles += role
         }
 
         for ((member, roleScores) in scoresByMember) {
-            if (member in assignedMembers) continue
+            if (member in takenMembers) continue
             val best = roleScores.filterKeys { it != Role.MEMBER }.values.maxOrNull() ?: 0.0
             result += RoleAssignment(member, Role.MEMBER, best)
-            assignedMembers += member
+            takenMembers += member
         }
 
         return result.sortedBy { it.memberId }

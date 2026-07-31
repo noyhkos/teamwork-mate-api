@@ -161,15 +161,15 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
             .andReturn().response.contentAsString
 
         val roles = JsonPath.read<List<String>>(report, "$.roles[*].role")
-        // the seven rungs stay unique; the overflow lands on `member`
-        val specialized = roles.filter { it != "member" }
-        kotlin.test.assertEquals(specialized.toSet().size, specialized.size, "specialized roles must not repeat")
-        kotlin.test.assertEquals(7, specialized.size)
-        kotlin.test.assertEquals(3, roles.count { it == "member" })
+        // eleven rungs, ten members: everyone lands on a real role
+        kotlin.test.assertEquals(roles.toSet().size, roles.size, "roles must not repeat")
+        kotlin.test.assertTrue(roles.none { it == "member" })
 
-        // ladder order is preserved: leader first, plain members last
+        // the core rungs are filled no matter who is in the team
+        kotlin.test.assertTrue(roles.containsAll(listOf("leader", "strategist")))
+        // ladder order is preserved
         kotlin.test.assertEquals("leader", roles.first())
-        kotlin.test.assertTrue(roles.takeLast(3).all { it == "member" })
+        kotlin.test.assertEquals("strategist", roles[1])
         JsonPath.read<List<String>>(report, "$.roles[*].reason").forEach {
             kotlin.test.assertTrue(it.isNotBlank())
         }
