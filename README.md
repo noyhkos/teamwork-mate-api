@@ -206,5 +206,4 @@ Spring Boot를 Lambda에서 돌리기 위해 **AWS Lambda Web Adapter**를 씁�
 ## 다음
 
 - GitHub Actions CI/CD
-- 프론트 Vercel 배포
 - 리포트 v2 (연애 모드, 전체 궁합 히트맵)
