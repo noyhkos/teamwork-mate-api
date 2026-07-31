@@ -4,7 +4,7 @@
 
 계정 없이 링크만 공유하면 되고, 팀원이 생일과 MBTI를 넣으면 리더·총무·브레이크 같은 역할을 배정하고 누구와 누가 잘 맞는지 점수로 보여줍니다.
 
-🔗 **https://teamwork-mate.vercel.app**
+🔗 **https://teamsaju.com**
 *(백엔드는 비용 관리를 위해 내려둘 수 있습니다. `cdk deploy` 한 번이면 5분 안에 복구됩니다.)*
 
 ![리포트 화면](docs/report.png)
