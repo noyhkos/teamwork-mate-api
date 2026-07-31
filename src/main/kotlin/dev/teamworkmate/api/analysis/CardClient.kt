@@ -7,7 +7,8 @@ import org.springframework.web.client.RestClient
 /** Renders the share card PNG via the calc service (satori lives in JS land). */
 @Component
 class CardClient(@Value("\${calc.base-url}") baseUrl: String) {
-    private val client = RestClient.builder().baseUrl(baseUrl).build()
+    // A Lambda Function URL carries a trailing slash; trimming avoids "//saju" paths.
+    private val client = RestClient.builder().baseUrl(baseUrl.trimEnd('/')).build()
 
     fun render(report: ReportView): ByteArray {
         val body = mapOf(

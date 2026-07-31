@@ -21,7 +21,8 @@ class SajuCalcClient(
     @Value("\${calc.base-url}") baseUrl: String,
     private val objectMapper: ObjectMapper,
 ) : CalcPort {
-    private val client = RestClient.builder().baseUrl(baseUrl).build()
+    // A Lambda Function URL carries a trailing slash; trimming avoids "//saju" paths.
+    private val client = RestClient.builder().baseUrl(baseUrl.trimEnd('/')).build()
 
     override fun fetchFacts(member: Member, now: Instant): JsonNode {
         val body = buildMap<String, Any> {
