@@ -150,6 +150,32 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
     }
 
     @Test
+    fun `every member gets a role even when the team outgrows the ladder`() {
+        val mbtis = listOf("ENTJ", "ISFP", "ESFJ", "INTP", "ENFP", "ISTJ", "ESTP", "INFJ", "ENTP", "ISFJ")
+        val token = setupTeam(mbtis)
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
+
+        val report = mvc.perform(get("/api/teams/$token/report"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.roles.length()").value(10)) // nobody is left out
+            .andReturn().response.contentAsString
+
+        val roles = JsonPath.read<List<String>>(report, "$.roles[*].role")
+        // the seven rungs stay unique; the overflow lands on `member`
+        val specialized = roles.filter { it != "member" }
+        kotlin.test.assertEquals(specialized.toSet().size, specialized.size, "specialized roles must not repeat")
+        kotlin.test.assertEquals(7, specialized.size)
+        kotlin.test.assertEquals(3, roles.count { it == "member" })
+
+        // ladder order is preserved: leader first, plain members last
+        kotlin.test.assertEquals("leader", roles.first())
+        kotlin.test.assertTrue(roles.takeLast(3).all { it == "member" })
+        JsonPath.read<List<String>>(report, "$.roles[*].reason").forEach {
+            kotlin.test.assertTrue(it.isNotBlank())
+        }
+    }
+
+    @Test
     fun `analyze with an unknown token is 404`() {
         mvc.perform(post("/api/teams/${java.util.UUID.randomUUID()}/analyze")).andExpect(status().isNotFound)
     }

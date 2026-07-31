@@ -3,20 +3,21 @@ package dev.teamworkmate.api.domain.roles
 data class RoleAssignment(
     val memberId: String,
     val role: Role,
-    val score: Double,
-    val unique: Boolean, // false when assigned in the duplicate round (team larger than role pool)
+    val score: Double, // for MEMBER this is the member's best specialized fitness
 )
 
 /**
- * Greedy global assignment: highest (member, role) score first, one role per member,
- * roles unique while they last. Leftover members get their personal best role (duplicates flagged).
+ * Greedy global assignment: highest (member, role) score first, one role per
+ * member, each specialized role held by exactly one person. Whoever is left
+ * once the seven rungs are taken becomes a plain MEMBER — the team is larger
+ * than the ladder, not the person a worse fit.
  * Ties break by memberId then role ordinal so results are fully deterministic.
  */
 object RoleAssigner {
 
     fun assign(scoresByMember: Map<String, Map<Role, Double>>): List<RoleAssignment> {
         val triples = scoresByMember
-            .flatMap { (m, rs) -> rs.map { (r, s) -> Triple(m, r, s) } }
+            .flatMap { (m, rs) -> rs.filterKeys { it != Role.MEMBER }.map { (r, s) -> Triple(m, r, s) } }
             .sortedWith(
                 compareByDescending<Triple<String, Role, Double>> { it.third }
                     .thenBy { it.first }
@@ -29,17 +30,15 @@ object RoleAssigner {
 
         for ((member, role, score) in triples) {
             if (member in assignedMembers || role in assignedRoles) continue
-            result += RoleAssignment(member, role, score, unique = true)
+            result += RoleAssignment(member, role, score)
             assignedMembers += member
             assignedRoles += role
         }
 
         for ((member, roleScores) in scoresByMember) {
             if (member in assignedMembers) continue
-            val best = roleScores.entries
-                .sortedWith(compareByDescending<Map.Entry<Role, Double>> { it.value }.thenBy { it.key.ordinal })
-                .first()
-            result += RoleAssignment(member, best.key, best.value, unique = false)
+            val best = roleScores.filterKeys { it != Role.MEMBER }.values.maxOrNull() ?: 0.0
+            result += RoleAssignment(member, Role.MEMBER, best)
             assignedMembers += member
         }
 

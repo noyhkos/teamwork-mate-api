@@ -23,7 +23,6 @@ class RoleScoreEntity(
     @Column(nullable = false) val role: String,
     @Column(nullable = false) val score: Double,
     @Column(nullable = false) val assigned: Boolean = false,
-    @Column(name = "assigned_unique") val assignedUnique: Boolean? = null,
     var reason: String? = null, // judge-accepted LLM phrase; NULL serves the template
 )
 

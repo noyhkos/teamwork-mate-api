@@ -21,7 +21,7 @@ import java.time.Instant
 import java.util.UUID
 
 data class RoleView(
-    val nickname: String, val role: String, val roleKo: String, val score: Double, val unique: Boolean?,
+    val nickname: String, val role: String, val roleKo: String, val score: Double,
     val reason: String, // LLM phrase when accepted, deterministic template otherwise
 )
 data class PairView(val a: String, val b: String, val total: Int, val factors: List<String>, val reason: String?)
@@ -106,7 +106,7 @@ class ReportController(
             .map { rs ->
                 val role = Role.entries.first { it.key == rs.role }
                 RoleView(
-                    nickname.getValue(rs.memberId), role.key, role.ko, rs.score, rs.assignedUnique,
+                    nickname.getValue(rs.memberId), role.key, role.ko, rs.score,
                     reason = rs.reason ?: PhrasePrompts.templateRoleReason(role, rs.score),
                 )
             }

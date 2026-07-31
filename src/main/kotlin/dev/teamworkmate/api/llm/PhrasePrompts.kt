@@ -64,11 +64,18 @@ object PhrasePrompts {
         Role.IDEA to listOf("창의성", "추진력"),
         Role.MEDIATOR to listOf("조율력", "안정감"),
         Role.BRAKE to listOf("신중함", "꼼꼼함"),
+        // MEMBER has no formula of its own; the score it carries is the member's
+        // best specialized fitness, so the basis is "no single axis stands out".
+        Role.MEMBER to listOf("고른 균형"),
     )
 
     /** Deterministic fallback when no accepted LLM phrase exists. */
-    fun templateRoleReason(role: Role, score: Double): String =
-        "${ROLE_BASIS.getValue(role).joinToString("·")} 축 적합도 ${Math.round(score)}점으로 ${role.ko} 자리에 배정됐어요."
+    fun templateRoleReason(role: Role, score: Double): String = when (role) {
+        Role.MEMBER ->
+            "어느 한 축으로 치우치지 않은 균형형이에요. 가장 가까운 역할 적합도는 ${Math.round(score)}점이었어요."
+        else ->
+            "${ROLE_BASIS.getValue(role).joinToString("·")} 축 적합도 ${Math.round(score)}점으로 ${role.ko} 자리에 배정됐어요."
+    }
 
     // ---- prompts ----
 

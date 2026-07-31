@@ -2,6 +2,7 @@ package dev.teamworkmate.api.analysis
 
 import dev.teamworkmate.api.domain.mbti.Mbti
 import dev.teamworkmate.api.domain.pairs.PairScorer
+import dev.teamworkmate.api.domain.roles.Role
 import dev.teamworkmate.api.domain.roles.RoleAssigner
 import dev.teamworkmate.api.domain.roles.RoleScorer
 import dev.teamworkmate.api.domain.traits.Trait
@@ -66,18 +67,26 @@ class AnalysisService(
             roleScores.deleteByTeamId(team.id)
             roleScores.saveAll(
                 scoresByMember.flatMap { (memberId, scores) ->
-                    scores.map { (role, score) ->
-                        val a = assignedByMember[memberId]
-                        val isAssigned = a?.role == role
+                    val assignment = assignedByMember.getValue(memberId)
+                    val rows = scores.map { (role, score) ->
                         RoleScoreEntity(
                             teamId = team.id,
                             memberId = UUID.fromString(memberId),
                             role = role.key,
                             score = score,
-                            assigned = isAssigned,
-                            assignedUnique = if (isAssigned) a!!.unique else null,
+                            assigned = assignment.role == role,
                         )
                     }
+                    // MEMBER carries no fitness formula, so it only reaches the
+                    // table for the people who actually land on it.
+                    if (assignment.role != Role.MEMBER) rows
+                    else rows + RoleScoreEntity(
+                        teamId = team.id,
+                        memberId = UUID.fromString(memberId),
+                        role = Role.MEMBER.key,
+                        score = assignment.score,
+                        assigned = true,
+                    )
                 },
             )
 
