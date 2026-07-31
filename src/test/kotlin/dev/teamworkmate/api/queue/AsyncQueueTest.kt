@@ -43,7 +43,7 @@ class AsyncQueueTest(@Autowired val mvc: MockMvc) {
         val body = mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"비동기팀"}"""))
             .andReturn().response.contentAsString
         val token = JsonPath.read<String>(body, "$.token")
-        listOf("ENTJ", "ISFP").forEachIndexed { i, mbti ->
+        listOf("ENTJ", "ISFP", "INFJ").forEachIndexed { i, mbti ->
             mvc.perform(
                 post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),
@@ -94,7 +94,7 @@ class ConcurrentSubmitTest(@Autowired val mvc: MockMvc, @Autowired val gated: Ga
         val body = mvc.perform(post("/api/teams").contentType(MediaType.APPLICATION_JSON).content("""{"name":"중복팀"}"""))
             .andReturn().response.contentAsString
         val token = JsonPath.read<String>(body, "$.token")
-        listOf("ENTJ", "ISFP").forEachIndexed { i, mbti ->
+        listOf("ENTJ", "ISFP", "INFJ").forEachIndexed { i, mbti ->
             mvc.perform(
                 post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),

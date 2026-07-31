@@ -45,8 +45,11 @@ class AnalysisService(
     @Transactional
     fun analyze(team: Team, now: Instant): Summary {
         val members = memberService.listFor(team.id)
-        if (members.size < 2) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "need at least 2 members (have ${members.size})")
+        if (members.size < MIN_MEMBERS) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "need at least $MIN_MEMBERS members (have ${members.size})",
+            )
         }
 
         run {

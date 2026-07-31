@@ -126,26 +126,41 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
 
     @Test
     fun `analyze is idempotent - rerun replaces scores`() {
-        val token = setupTeam(listOf("ENTJ", "ISFP"))
+        val token = setupTeam(listOf("ENTJ", "ISFP", "INFJ"))
         mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
         mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
 
         mvc.perform(get("/api/teams/$token/report"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.roles.length()").value(2))
-            .andExpect(jsonPath("$.bestPair.total").isNumber) // C(2,2) == 1 pair
-            .andExpect(jsonPath("$.worstPair").doesNotExist())
+            .andExpect(jsonPath("$.roles.length()").value(3)) // rerun did not duplicate rows
+            .andExpect(jsonPath("$.bestPair.total").isNumber)
+            .andExpect(jsonPath("$.worstPair.total").isNumber) // C(3,2) == 3 pairs
     }
 
     @Test
-    fun `analyze needs at least 2 members`() {
-        val token = setupTeam(listOf("ENTJ"))
-        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isConflict)
+    fun `the three core rungs are always filled`() {
+        val token = setupTeam(listOf("ENTJ", "ISFP", "INFJ"))
+        mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isAccepted)
+
+        val report = mvc.perform(get("/api/teams/$token/report")).andReturn().response.contentAsString
+        // The smallest allowed team is exactly the core rungs, in ladder order.
+        kotlin.test.assertEquals(
+            listOf("leader", "strategist", "treasurer"),
+            JsonPath.read<List<String>>(report, "$.roles[*].role"),
+        )
+    }
+
+    @Test
+    fun `analyze needs at least three members`() {
+        listOf(listOf("ENTJ"), listOf("ENTJ", "ISFP")).forEach { mbtis ->
+            val token = setupTeam(mbtis)
+            mvc.perform(post("/api/teams/$token/analyze")).andExpect(status().isConflict)
+        }
     }
 
     @Test
     fun `report before analysis is 404`() {
-        val token = setupTeam(listOf("ENTJ", "ISFP"))
+        val token = setupTeam(listOf("ENTJ", "ISFP", "INFJ"))
         mvc.perform(get("/api/teams/$token/report")).andExpect(status().isNotFound)
     }
 

@@ -61,30 +61,32 @@ class RoleTest {
         val scores = mapOf(
             "m1" to flatScores(Role.LEADER to 90.0),
             "m2" to flatScores(Role.STRATEGIST to 88.0),
-            "m3" to flatScores(Role.BRAKE to 95.0),
+            "m3" to flatScores(Role.TREASURER to 87.0),
+            "m4" to flatScores(Role.BRAKE to 95.0), // highest score of anyone, still not core
         )
         val result = RoleAssigner.assign(scores)
 
-        assertEquals(3, result.size)
+        assertEquals(4, result.size)
         assertEquals(Role.LEADER, result.first { it.memberId == "m1" }.role)
         assertEquals(Role.STRATEGIST, result.first { it.memberId == "m2" }.role)
-        // m3 was not needed for a core rung, so their own best fit wins
-        assertEquals(Role.BRAKE, result.first { it.memberId == "m3" }.role)
+        assertEquals(Role.TREASURER, result.first { it.memberId == "m3" }.role)
+        // m4 was not needed for a core rung, so their own best fit wins
+        assertEquals(Role.BRAKE, result.first { it.memberId == "m4" }.role)
         assertTrue(result.none { it.role == Role.MEMBER })
     }
 
     @Test
-    fun `a small team still gets a leader even when nobody fits it best`() {
+    fun `the smallest team still fills every core rung`() {
         // Every member's own best role is something other than a core rung —
         // the old purely greedy pass produced a report with no 리더 at all.
         val scores = mapOf(
             "m1" to flatScores(Role.BRAKE to 95.0),
             "m2" to flatScores(Role.MOOD to 93.0),
+            "m3" to flatScores(Role.SCRIBE to 91.0),
         )
-        val roles = RoleAssigner.assign(scores).associate { it.memberId to it.role }
+        val roles = RoleAssigner.assign(scores).map { it.role }.toSet()
 
-        assertEquals(setOf(Role.LEADER, Role.STRATEGIST), roles.values.toSet())
-        assertEquals(Role.CORE.size, roles.size)
+        assertEquals(Role.CORE.toSet(), roles)
     }
 
     @Test
@@ -124,7 +126,7 @@ class RoleTest {
         )
         val result = RoleAssigner.assign(scores)
         assertTrue(result.none { it.role == Role.MEMBER })
-        assertEquals(Role.CORE.toSet(), result.map { it.role }.toSet())
+        assertTrue(result.map { it.role }.all { it in Role.CORE })
     }
 
     @Test

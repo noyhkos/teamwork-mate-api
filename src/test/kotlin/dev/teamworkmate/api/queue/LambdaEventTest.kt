@@ -31,7 +31,7 @@ class LambdaEventTest(@Autowired val mvc: MockMvc) {
             .andReturn().response.contentAsString
         val teamId = JsonPath.read<String>(body, "$.teamId")
         val token = JsonPath.read<String>(body, "$.token")
-        listOf("ENTJ", "ISFP").forEachIndexed { i, mbti ->
+        listOf("ENTJ", "ISFP", "INFJ").forEachIndexed { i, mbti ->
             mvc.perform(
                 post("/api/teams/$token/members").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"nickname":"멤버$i","birthDate":"2000-01-27","birthTime":"10:30","gender":"M","mbti":"$mbti"}"""),

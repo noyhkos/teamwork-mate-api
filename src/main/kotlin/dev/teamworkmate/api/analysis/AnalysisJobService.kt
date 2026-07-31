@@ -17,6 +17,13 @@ import java.time.Instant
 import java.util.UUID
 
 /**
+ * Smallest team the report is willing to describe. Two people produce a single
+ * pair, so there is no "best vs worst" to compare and no room for the three
+ * core roles; three is the first size where the report says anything.
+ */
+const val MIN_MEMBERS = 3
+
+/**
  * Owns the analysis state machine and the request/worker boundary.
  * The HTTP thread only validates and enqueues; all heavy work (calc, scoring,
  * LLM phrases) happens on the worker so a request never blocks for minutes.
@@ -35,8 +42,11 @@ class AnalysisJobService(
     /** Request path: validate, claim the team, hand off. Returns as soon as it is queued. */
     fun submit(team: Team) {
         val members = memberService.listFor(team.id)
-        if (members.size < 2) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "need at least 2 members (have ${members.size})")
+        if (members.size < MIN_MEMBERS) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "need at least $MIN_MEMBERS members (have ${members.size})",
+            )
         }
         // Committed before the hand-off, so a duplicate submit sees `processing`
         // and the worker never reads a stale row.

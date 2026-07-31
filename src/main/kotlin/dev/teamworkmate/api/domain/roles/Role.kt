@@ -5,7 +5,9 @@ package dev.teamworkmate.api.domain.roles
  *
  * `core` roles are filled first and unconditionally, so a team always learns
  * who runs it — the greedy pass alone left small teams with no 리더 at all.
- * Everyone else is matched to whichever remaining role fits them best.
+ * There are exactly as many core rungs as the minimum team size, so the
+ * smallest possible team still fills all three. Everyone else is matched to
+ * whichever remaining role fits them best.
  *
  * MEMBER is the bottom rung: the only role more than one person can hold, and
  * the only one without a fitness formula. It is excluded from scoring and from
@@ -16,7 +18,7 @@ package dev.teamworkmate.api.domain.roles
 enum class Role(val key: String, val ko: String, val core: Boolean = false) {
     LEADER("leader", "리더", core = true),
     STRATEGIST("strategist", "책략가", core = true),
-    TREASURER("treasurer", "총무"),
+    TREASURER("treasurer", "총무", core = true),
     FIXER("fixer", "해결사"),
     ENFORCER("enforcer", "군기반장"),
     IDEA("idea", "아이디어뱅크"),
