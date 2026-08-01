@@ -25,6 +25,13 @@ data class RoleView(
     val reason: String, // LLM phrase when accepted, deterministic template otherwise
 )
 data class PairView(val a: String, val b: String, val total: Int, val factors: List<String>, val reason: String?)
+
+/**
+ * Every pair, without the factor list or the phrase. The relationship polygon
+ * draws all C(n,2) edges — 66 of them at twelve members — and needs nothing
+ * but the score, so the heavy fields stay on bestPair/worstPair.
+ */
+data class PairEdge(val a: String, val b: String, val total: Int)
 data class ReportView(
     val teamName: String,
     val archetype: String,
@@ -34,6 +41,7 @@ data class ReportView(
     val roles: List<RoleView>,
     val bestPair: PairView?,
     val worstPair: PairView?,
+    val pairs: List<PairEdge>,
     val traitAvgs: Map<String, Double>,
     val elementTotals: Map<String, Int>,
     val riskNote: String?,
@@ -133,6 +141,9 @@ class ReportController(
             roles = roles,
             bestPair = best,
             worstPair = worst,
+            pairs = pairs.map {
+                PairEdge(nickname.getValue(it.memberAId), nickname.getValue(it.memberBId), it.total)
+            },
             traitAvgs = om.readValue(analysis.traitAvgs, Map::class.java) as Map<String, Double>,
             elementTotals = om.readValue(analysis.elementTotals, Map::class.java) as Map<String, Int>,
             riskNote = analysis.riskNote,

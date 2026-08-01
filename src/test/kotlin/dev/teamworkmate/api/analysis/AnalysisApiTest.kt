@@ -106,6 +106,7 @@ class AnalysisApiTest(@Autowired val mvc: MockMvc) {
             .andExpect(jsonPath("$.roles.length()").value(4))
             .andExpect(jsonPath("$.bestPair.total").isNumber)
             .andExpect(jsonPath("$.worstPair.factors").isArray)
+            .andExpect(jsonPath("$.pairs.length()").value(6)) // C(4,2) — every edge of the polygon
             .andExpect(jsonPath("$.harmonyScore").isNumber)
             .andExpect(jsonPath("$.samjaeMembers.length()").value(4)) // golden chart is in samjae
             .andExpect(jsonPath("$.riskNote").isNotEmpty)
