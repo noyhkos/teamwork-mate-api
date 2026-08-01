@@ -9,8 +9,14 @@ import jakarta.persistence.Table
 import java.time.Instant
 import java.util.UUID
 
-/** Lowercase names intentionally match the DB CHECK constraint values. */
-enum class TeamStatus { collecting, ready, processing, done, failed }
+/**
+ * Lowercase names intentionally match the DB CHECK constraint values.
+ *
+ * The only transitions are collecting → processing → done | failed. An earlier
+ * `ready` rung was never written or read by anything, and left a reader of the
+ * state machine hunting for a stage that does not exist.
+ */
+enum class TeamStatus { collecting, processing, done, failed }
 
 @Entity
 @Table(name = "teams")

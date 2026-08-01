@@ -65,6 +65,7 @@ class ReportController(
     private val teamAnalysis: TeamAnalysisRepository,
     private val sajuFacts: SajuFactsRepository,
     private val cardClient: CardClient,
+    private val cardCache: CardCache,
     private val om: ObjectMapper,
 ) {
 
@@ -92,7 +93,12 @@ class ReportController(
     fun cardBySlug(@PathVariable slug: String): org.springframework.http.ResponseEntity<ByteArray> {
         val team = teams.findByShareSlug(slug)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "리포트를 찾을 수 없어요.")
-        val png = cardClient.render(buildReport(team))
+        // One row by primary key, versus rebuilding the report and calling calc:
+        // reading analyzedAt first is what lets the cache below be correct.
+        val analyzedAt = teamAnalysis.findById(team.id)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "리포트를 찾을 수 없어요.") }
+            .analyzedAt
+        val png = cardCache.get(slug, analyzedAt) { cardClient.render(buildReport(team)) }
         return org.springframework.http.ResponseEntity.ok()
             .header("Cache-Control", "public, max-age=3600")
             .body(png)

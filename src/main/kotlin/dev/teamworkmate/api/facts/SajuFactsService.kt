@@ -5,9 +5,9 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.client.RestClient
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import java.time.Duration
 import java.time.Instant
 
 /** Port so tests (and future transports) can swap the calc backend. */
@@ -21,8 +21,9 @@ class SajuCalcClient(
     @Value("\${calc.base-url}") baseUrl: String,
     private val objectMapper: ObjectMapper,
 ) : CalcPort {
-    // A Lambda Function URL carries a trailing slash; trimming avoids "//saju" paths.
-    private val client = RestClient.builder().baseUrl(baseUrl.trimEnd('/')).build()
+    // Called once per member on the analysis job thread, so a hang here multiplies
+    // across the roster before the platform times the whole job out.
+    private val client = CalcHttp.client(baseUrl, Duration.ofSeconds(20))
 
     override fun fetchFacts(member: Member, now: Instant): JsonNode {
         val body = buildMap<String, Any> {
