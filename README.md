@@ -41,7 +41,7 @@ flowchart TB
 |---|---|---|
 | **api** (이 저장소) | 도메인 로직, 점수 엔진, LLM 파이프라인, 상태 머신 | Spring Boot 4 · Kotlin 2.3 · JPA · Flyway |
 | [calc](https://github.com/noyhkos/teamwork-mate-calc) | 사주 계산, 공유 카드 이미지 렌더 | Node · Fastify · ssaju · satori |
-| [front](https://github.com/noyhkos/teamwork-mate-front) | 입력 폼, 리포트 화면 | Next.js 16 · Tailwind v4 |
+| [front](https://github.com/noyhkos/teamwork-mate-front) | 대기 화면, 리포트 화면, [디자인 시스템](https://github.com/noyhkos/teamwork-mate-front/blob/main/design-system/MASTER.md) | Next.js 16 · Tailwind v4 |
 | [infra](https://github.com/noyhkos/teamwork-mate-infra) | 배포 정의 | AWS CDK · TypeScript |
 
 **계산만 Node로 뺀 이유**는 아키텍처 취향이 아니라 제약입니다. 검증을 마친 한국식 사주 라이브러리(`ssaju`)가 TypeScript 전용이라, 포팅 리스크를 감수하는 대신 언어 경계에서 서비스로 격리했습니다. 그 외 도메인 로직은 전부 Spring 안에 있습니다.
@@ -117,14 +117,35 @@ interface QueuePort  { fun submit(teamId: UUID) }
 
 덕분에 테스트는 외부 호출 없이 전 구간을 돌리고, 큐는 로컬(인메모리)과 배포(SQS)가 호출부 수정 없이 교체됩니다. 판정 거부·LLM 장애·poison message 같은 실패 경로도 테스트로 고정돼 있습니다.
 
-### ⑥ 계정 없는 권한 모델
+### ⑥ 계정 없는 권한 모델 — 토큰 2종에서 1종으로
 
-가입 없이 쓰는 서비스라 **URL 토큰 2종**으로 권한을 나눴습니다.
+처음에는 `admin`(팀 관리·분석 실행)과 `invite`(본인 입력) 두 토큰으로 권한을 나눴습니다. 지금은 **팀 링크 하나**입니다.
 
-- `admin` 토큰 — 팀 관리, 대리 입력, 분석 실행
-- `invite` 토큰 — 본인 정보 입력, 리포트 열람
+```kotlin
+// Possession of this URL is the permission — there is no second, elevated link.
+@Column(name = "access_token", nullable = false, unique = true)
+val accessToken: String,
+```
 
-초대 링크 응답에 관리자 토큰이 새지 않는다는 것과, 초대 뷰가 다른 사람의 생년월일을 노출하지 않는다는 것을 **테스트로 고정**했습니다.
+되돌린 이유는 권한 모델이 실제 사용 방식과 어긋났기 때문입니다. 단톡방에 링크를 던지는 서비스에 **"관리자"라는 역할이 존재하지 않습니다.** 먼저 들어온 사람이 남의 정보를 대신 넣어주고, 아무나 인원이 다 찼다고 판단해 분석을 누릅니다. 두 토큰 체제는 이걸 화면 두 개(`/t/[invite]`, `/a/[admin]`)로 갈라놓았고, 관리자 링크를 단톡방에 잘못 붙여넣는 순간 구분 자체가 무의미해졌습니다.
+
+**트레이드오프는 인지하고 받아들였습니다.** 링크를 가진 사람은 누구나 멤버를 지우거나 재분석을 돌릴 수 있습니다. 계정을 붙이면 막을 수 있지만 그건 "가입 없이 링크만"이라는 전제를 깨고, 사고가 나도 범위는 일회성 팀 하나입니다.
+
+대신 **리포트는 별도의 공개 slug**를 씁니다. 완성된 리포트를 공유해도 팀 링크가 함께 넘어가지 않습니다 — 리포트를 받은 사람이 멤버를 지울 수는 없어야 하기 때문입니다.
+
+### ⑦ 순수 그리디로는 리더 없는 팀이 나온다
+
+역할은 리더·책략가·총무·해결사·군기반장·아이디어뱅크·외교관·조율가·분위기메이커·기록가·브레이크 **11단** + `일반 멤버`입니다.
+
+배정을 **(멤버, 역할) 점수가 높은 순으로 그리디**하게만 돌렸더니, 작은 팀에서 **리더가 아예 없는 리포트**가 나왔습니다. 버그가 아니라 정직한 결과였습니다 — 세 명 각자의 최적합 역할이 우연히 전부 리더가 아니었을 뿐입니다. 하지만 읽는 사람에게는 그냥 **고장난 리포트**로 보입니다.
+
+그래서 두 단계로 나눴습니다.
+
+1. **핵심 역할은 무조건 채운다** — 리더·책략가·총무는 남은 후보 중 최적임자에게 사다리 순서대로 먼저 배정
+2. **나머지는 최적합 매칭** — 남은 (멤버, 역할)을 점수 높은 순으로 그리디하게
+3. **`일반 멤버`** — 사다리가 동나면 남은 사람이 여기로 오되, **본인의 최고 특화 점수를 그대로 들고 옵니다**
+
+3번은 의도적입니다. `일반 멤버`가 "남은 사람"으로 읽히면 그 사람만 리포트에서 빈손이 됩니다. 동점은 memberId → 역할 순번으로 깨서 **같은 입력이면 항상 같은 배정**이 나옵니다.
 
 ---
 
@@ -165,7 +186,8 @@ cd ../front && npm install && npm run dev
 ## 테스트
 
 ```bash
-./gradlew test        # api  60개
+docker compose up -d           # 테스트가 이 Postgres를 씁니다
+./gradlew test                 # api  71개
 cd ../calc && npx vitest run   # calc 28개
 ```
 

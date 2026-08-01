@@ -9,8 +9,8 @@ data class RoleAssignment(
 /**
  * Two passes, then a fallback.
  *
- * 1. **Core rungs, unconditionally.** LEADER and STRATEGIST go to the best
- *    remaining candidate for each, in ladder order. A purely greedy pass used
+ * 1. **Core rungs, unconditionally.** Every rung in [Role.CORE] goes to the best
+ *    remaining candidate for it, in ladder order. A purely greedy pass used
  *    to leave small teams with no 리더 at all — every member's best-fitting
  *    role simply happened to be something else — which reads as a broken
  *    report rather than an honest one.
