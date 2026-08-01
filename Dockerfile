@@ -15,12 +15,16 @@ WORKDIR /app
 
 # Lambda Web Adapter: a Lambda extension that proxies the Runtime API to a plain
 # HTTP server, so the same image runs unchanged on Lambda and on ECS/local — the
-# extension is simply inert outside Lambda. Non-HTTP triggers (SQS) arrive as a
-# POST to AWS_LWA_PASS_THROUGH_PATH.
+# extension is simply inert outside Lambda.
+#
+# AWS_LWA_PASS_THROUGH_PATH is deliberately NOT set here. Non-HTTP triggers (SQS)
+# arrive as a POST to that path, and this image is shared by the public api and
+# the worker — baking it in opened the job-trigger route on the public function
+# too, leaving a Spring conditional bean as the only thing refusing it. The
+# worker function sets it in CDK instead, so the api never has the route at all.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
 ENV PORT=8080 \
     AWS_LWA_READINESS_CHECK_PATH=/healthz \
-    AWS_LWA_PASS_THROUGH_PATH=/events \
     AWS_LWA_INVOKE_MODE=buffered
 
 COPY --from=build /app/build/libs/*.jar app.jar
